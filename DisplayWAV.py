@@ -51,7 +51,7 @@ def plot_voltage_samples(data, sample_rate, num_channels, file_path):
     fig.canvas.mpl_connect('key_press_event', player.on_key)
     
     # Keep a reference to prevent garbage collection
-    fig.player = player
+    fig.player = player # type: ignore
 
     plt.show()
     

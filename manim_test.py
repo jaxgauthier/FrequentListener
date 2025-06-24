@@ -1,7 +1,7 @@
 from manim import *
 
 class SquareToCircle(Scene): 
-    def construct(self):
+    def construct(self, a1=20, a2=10):
         # Create a group to hold everything
         everything = VGroup()
 
@@ -59,8 +59,6 @@ class SquareToCircle(Scene):
             graph2.add(label)
 
         # Create sine waves with different frequencies
-        a1 = 10  # First frequency
-        a2 = 5   # Second frequency
         sine_wave1 = graph1.plot(lambda x: np.sin(2*np.pi*a1*x), color=RED)
         sine_wave2 = graph2.plot(lambda x: np.sin(2*np.pi*a2*x), color=GREEN)
         wave3 = graph3.plot(lambda x: np.sin(2*np.pi*a1*x) + np.sin(2*np.pi*a2*x), color=YELLOW)

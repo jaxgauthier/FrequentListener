@@ -1,0 +1,5 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/jaxsongauthier/Documents/GitHub/DFT/media/videos/manim_test/1080p15/partial_movie_files/SquareToCircle/1459953612_2179463362_223132457.mp4'
+file 'file:/Users/jaxsongauthier/Documents/GitHub/DFT/media/videos/manim_test/1080p15/partial_movie_files/SquareToCircle/1133673986_3447367049_1416566919.mp4'
+file 'file:/Users/jaxsongauthier/Documents/GitHub/DFT/media/videos/manim_test/1080p15/partial_movie_files/SquareToCircle/1133673986_1317068891_2388534626.mp4'
+file 'file:/Users/jaxsongauthier/Documents/GitHub/DFT/media/videos/manim_test/1080p15/partial_movie_files/SquareToCircle/1133673986_2015106682_3149882528.mp4'
