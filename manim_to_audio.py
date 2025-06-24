@@ -4,7 +4,7 @@ from helpers.audio_player import AudioPlayer
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 
-def generate_audio_from_frequencies(frequencies, amplitudes=None, duration=4.0, sample_rate=44100):
+def generate_audio_from_frequencies(frequencies, amplitudes=None, duration=5.0, sample_rate=44100):
     """
     Generate audio data from a list of frequencies
     

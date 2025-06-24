@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Frequency Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1>🎵 Audio Frequency Game</h1>
+            <div class="nav-links">
+                <a href="/" class="nav-link active">Play</a>
+                <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="game-container">
+            <h2>Week {{ current_week }} Challenge</h2>
+            
+            {% if current_song %}
+            <div class="song-info">
+                <h3>What song is this?</h3>
+            </div>
+            {% endif %}
+
+            <!-- Guess Form -->
+            <div class="guess-section">
+                <form id="guessForm">
+                    <div class="form-group">
+                        <label for="songGuess">Song Title:</label>
+                        <input type="text" id="songGuess" name="song_guess" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Submit Guess</button>
+                </form>
+            </div>
+
+            <!-- Results -->
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h3>Results</h3>
+                <div id="resultMessage"></div>
+                <div class="correct-answer">
+                    <h4>Correct Answer:</h4>
+                    <p id="correctAnswer"></p>
+                </div>
+            </div>
+            
+
+
+            <!-- Audio Players -->
+            <div class="audio-section">
+                <h3>Listen to the Reconstructed Audio</h3>
+                <div class="audio-players">
+                    {% if current_song and current_song.has_frequency_versions %}
+                    <div class="audio-player" id="audio-10">
+                        <h4>10 Frequencies (Very Hard)</h4>
+                        <audio controls>
+                            <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='10') }}" type="audio/wav">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                    
+                    <div class="audio-player" id="audio-100" style="display: none;">
+                        <h4>100 Frequencies (Hard)</h4>
+                        <audio controls>
+                            <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='100') }}" type="audio/wav">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                    
+                    <div class="audio-player" id="audio-500" style="display: none;">
+                        <h4>500 Frequencies (Medium)</h4>
+                        <audio controls>
+                            <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='500') }}" type="audio/wav">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                    
+                    <div class="audio-player" id="audio-1000" style="display: none;">
+                        <h4>1000 Frequencies (Easier)</h4>
+                        <audio controls>
+                            <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='1000') }}" type="audio/wav">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                    
+                    <div class="audio-player" id="audio-5000" style="display: none;">
+                        <h4>5000 Frequencies (Easiest)</h4>
+                        <audio controls>
+                            <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='5000') }}" type="audio/wav">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                    {% else %}
+                    <div class="no-audio">
+                        <p>No frequency versions available for this song.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/user.js') }}"></script>
+</body>
+</html> 

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Audio Frequency Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1>🎵 Admin Panel</h1>
+            <div class="nav-links">
+                <a href="/admin" class="nav-link active">Admin</a>
+                <a href="/" class="nav-link">View User Page</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="admin-container">
+            <h2>Song Management</h2>
+            
+            <!-- Upload New Song -->
+            <div class="upload-section">
+                <h3>Add New Song</h3>
+                <form action="/admin/upload" method="POST" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="songFile">Select Audio File:</label>
+                        <input type="file" id="songFile" name="file" accept=".mp3,.wav" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="songTitle">Song Title:</label>
+                        <input type="text" id="songTitle" name="title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="songArtist">Artist:</label>
+                        <input type="text" id="songArtist" name="artist" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="songWeek">Week Number:</label>
+                        <input type="number" id="songWeek" name="week" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Upload Song</button>
+                </form>
+            </div>
+
+            <!-- Current Songs List -->
+            <div class="songs-section">
+                <h3>Current Songs</h3>
+                <div class="songs-list">
+                    {% for song in songs %}
+                    <div class="song-item">
+                        <div class="song-info">
+                            <h4>{{ song.title }} - {{ song.artist }}</h4>
+                            <p>Week {{ song.week }} | Uploaded: {{ song.upload_date }}</p>
+                            {% if song.has_frequency_versions %}
+                            <span class="status-badge status-success">✓ Frequency versions available</span>
+                            {% else %}
+                            <span class="status-badge status-warning">⚠ No frequency versions</span>
+                            {% endif %}
+                        </div>
+                        <div class="song-actions">
+                            {% if song.has_frequency_versions %}
+                            <button class="btn btn-small btn-success" onclick="viewFrequencies('{{ song.base_filename }}')">View Frequencies</button>
+                            {% endif %}
+                            {% if song.filename %}
+                            <button class="btn btn-small" onclick="playSong('{{ song.filename }}')">Play Original</button>
+                            {% endif %}
+                            <button class="btn btn-small btn-danger" onclick="deleteSong('{{ song.id }}')">Delete</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Website Stats -->
+            <div class="stats-section">
+                <h3>Website Stats</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Total Songs</h4>
+                        <p>{{ stats.total_songs }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Total Plays</h4>
+                        <p>{{ stats.total_plays }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>This Week</h4>
+                        <p>{{ stats.this_week_plays }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html> 
