@@ -15,19 +15,19 @@ document.addEventListener('DOMContentLoaded', function() {
     showCurrentDifficulty();
 
     function showCurrentDifficulty() {
-        // Hide all audio players
-        frequencies.forEach(freq => {
-            const audioPlayer = document.getElementById(`audio-${freq}`);
+        // Show all difficulties up to the current level
+        for (let i = 0; i <= currentDifficulty; i++) {
+            const audioPlayer = document.getElementById(`audio-${frequencies[i]}`);
+            if (audioPlayer) {
+                audioPlayer.style.display = 'block';
+            }
+        }
+        
+        // Hide difficulties beyond the current level
+        for (let i = currentDifficulty + 1; i < frequencies.length; i++) {
+            const audioPlayer = document.getElementById(`audio-${frequencies[i]}`);
             if (audioPlayer) {
                 audioPlayer.style.display = 'none';
-            }
-        });
-        
-        // Show only the current difficulty level
-        if (currentDifficulty < frequencies.length) {
-            const currentAudioPlayer = document.getElementById(`audio-${frequencies[currentDifficulty]}`);
-            if (currentAudioPlayer) {
-                currentAudioPlayer.style.display = 'block';
             }
         }
     }
@@ -51,6 +51,62 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show results if they got it right OR if they've gone through all frequencies
         return currentDifficulty >= frequencies.length - 1; // -1 because we start at 0
     }
+
+    // Global function for adding next difficulty level
+    window.addNextDifficulty = function() {
+        console.log('Adding next difficulty level');
+        
+        // Check if we're at the last difficulty level
+        if (currentDifficulty >= frequencies.length - 1) {
+            // Show results since we've gone through all frequencies
+            resultsSection.style.display = 'block';
+            resultMessage.innerHTML = '<p style="color: orange; font-weight: bold;">You\'ve revealed all difficulty levels. Here\'s the answer:</p>';
+            
+            // Get the correct answer from the server
+            fetch('/submit_guess', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    song_title: 'Mr Brightside',
+                    artist: 'The Killers',
+                    guess: 'skip_all'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.correct) {
+                    correctAnswer.innerHTML = `
+                        <h4>🎉 Correct!</h4>
+                        <p>The song is: ${data.song_title} by ${data.artist}</p>
+                    `;
+                } else {
+                    correctAnswer.innerHTML = `
+                        <h4>❌ Incorrect</h4>
+                        <p>The correct answer is: ${data.song_title} by ${data.artist}</p>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                correctAnswer.innerHTML = '<p>Error getting answer</p>';
+            });
+            
+            // Hide the plus button since we've shown all difficulties
+            document.querySelector('.plus-button-container').style.display = 'none';
+            return;
+        }
+        
+        // Move to next difficulty
+        currentDifficulty++;
+        showCurrentDifficulty();
+        
+        // If we've shown all difficulties, hide the plus button
+        if (currentDifficulty >= frequencies.length - 1) {
+            document.querySelector('.plus-button-container').style.display = 'none';
+        }
+    };
 
     guessForm.addEventListener('submit', function(e) {
         e.preventDefault();
