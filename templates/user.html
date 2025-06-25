@@ -18,7 +18,7 @@
             <h2>How to Play</h2>
             <p>Listen to the reconstructed audio and try to guess the original song!</p>
             <ul>
-                <li>Start with the hardest version (10 frequencies)</li>
+                <li>Start with the hardest version (100 frequencies)</li>
                 <li>Click the + button to reveal easier versions</li>
                 <li>Use the guess form below to submit your answer</li>
                 <li>You can guess at any time during the game</li>
@@ -29,46 +29,26 @@
         <section class="audio-section">
             <h3>Listen to the Reconstructed Audio</h3>
             <div class="audio-players">
-                {% if current_song and current_song.has_frequency_versions %}
-                <div class="audio-player" id="audio-10">
-                    <h4>10 Frequencies (Very Hard)</h4>
-                    <audio controls>
-                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='10') }}" type="audio/wav">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>
+                {% if current_song and current_song.available_frequencies %}
+                {% set difficulty_labels = {
+                    '100': 'Hardest',
+                    '500': 'Very Hard', 
+                    '1000': 'Hard',
+                    '2000': 'Medium',
+                    '3500': 'Easier',
+                    '5000': 'Easy',
+                    '7500': 'Easiest'
+                } %}
                 
-                <div class="audio-player" id="audio-100" style="display: none;">
-                    <h4>100 Frequencies (Hard)</h4>
+                {% for freq in current_song.available_frequencies %}
+                <div class="audio-player" id="audio-{{ freq }}" {% if loop.index > 1 %}style="display: none;"{% endif %}>
+                    <h4>{{ freq }} Frequencies ({{ difficulty_labels.get(freq, 'Unknown') }})</h4>
                     <audio controls>
-                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='100') }}" type="audio/wav">
+                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency=freq) }}" type="audio/wav">
                         Your browser does not support the audio element.
                     </audio>
                 </div>
-                
-                <div class="audio-player" id="audio-500" style="display: none;">
-                    <h4>500 Frequencies (Medium)</h4>
-                    <audio controls>
-                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='500') }}" type="audio/wav">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>
-                
-                <div class="audio-player" id="audio-1000" style="display: none;">
-                    <h4>1000 Frequencies (Easier)</h4>
-                    <audio controls>
-                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='1000') }}" type="audio/wav">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>
-                
-                <div class="audio-player" id="audio-5000" style="display: none;">
-                    <h4>5000 Frequencies (Easiest)</h4>
-                    <audio controls>
-                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency='5000') }}" type="audio/wav">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>
+                {% endfor %}
                 {% else %}
                 <div class="no-audio">
                     <p>No frequency versions available for this song.</p>
@@ -88,7 +68,10 @@
             <form id="guessForm" class="guess-form">
                 <div class="form-group">
                     <label for="songGuess">Song Title:</label>
-                    <input type="text" id="songGuess" name="song_guess" required placeholder="Enter the song title...">
+                    <div class="search-container">
+                        <input type="text" id="songGuess" name="song_guess" required placeholder="Start typing to search songs...">
+                        <div id="searchSuggestions" class="search-suggestions"></div>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary">Submit Guess</button>
             </form>

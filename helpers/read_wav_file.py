@@ -11,7 +11,8 @@ def read_wav_file(file_path):
         data = np.frombuffer(frames, dtype=np.int16)
         if num_channels == 2:
             data = data.reshape(-1, 2)
-            data = data.mean(axis=1)
+            # Use only left channel instead of averaging to avoid phase cancellation
+            data = data[:, 0]
         
         # Normalize the data
         data = data.astype(np.float32) / 32768.0

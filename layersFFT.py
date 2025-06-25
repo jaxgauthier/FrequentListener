@@ -142,7 +142,7 @@ def main(input_file=None, start_time=0, end_time=None):
     significant_indices = magnitude > min_magnitude_threshold
     
     # Find top frequencies by magnitude (limit to reasonable number)
-    top_n = [10,100,200,300,400,500,750,1000,2500,5000, 10000]
+    top_n = [100, 500, 1000, 2000, 3500, 5000, 7500]
     available_indices = np.where(significant_indices)[0]
 
     for i in range(len(top_n)):

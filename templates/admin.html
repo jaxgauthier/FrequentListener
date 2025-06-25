@@ -49,6 +49,56 @@
                 </form>
             </div>
 
+            <!-- Spotify Search and Auto-Processing -->
+            <div class="spotify-section">
+                <h3>🎵 Search Spotify & Auto-Process</h3>
+                <p>Search for songs on Spotify and automatically download and process them through the DFT pipeline</p>
+                <div class="feature-note">
+                    <strong>✨ Real Audio Download:</strong> Now downloads actual audio from YouTube and processes it through your DFT pipeline!
+                    <br><strong>⏱️ Time Range Optimization:</strong> Only downloads the selected time range to save bandwidth and processing time.
+                </div>
+                
+                <!-- Progress Indicator -->
+                <div id="progressSection" class="progress-section" style="display: none;">
+                    <h4>Processing Progress</h4>
+                    <div class="progress-bar">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                    <div id="progressText">Initializing...</div>
+                    <div id="progressDetails"></div>
+                </div>
+
+                <div class="search-container">
+                    <div class="form-group">
+                        <label for="spotifySearch">Search Spotify:</label>
+                        <input type="text" id="spotifySearch" placeholder="Enter song title or artist..." autocomplete="off">
+                        <div id="spotifySuggestions" class="spotify-suggestions"></div>
+                    </div>
+                </div>
+
+                <div id="selectedSongInfo" class="selected-song-info" style="display: none;">
+                    <h4>Selected Song:</h4>
+                    <div id="songDetails"></div>
+                    <div class="form-group">
+                        <label for="autoWeek">Week Number:</label>
+                        <input type="number" id="autoWeek" value="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="startTime">Start Time (seconds):</label>
+                        <input type="number" id="startTime" value="0" min="0" step="0.1" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="endTime">End Time (seconds):</label>
+                        <input type="number" id="endTime" value="10" min="0" step="0.1" placeholder="10">
+                    </div>
+                    <div class="time-info">
+                        <small>Processing <span id="timeSpan">10</span> seconds of audio</small>
+                    </div>
+                    <button id="processSongBtn" class="btn btn-success">🚀 Process Song & Add to Game</button>
+                    <div id="processingStatus" class="processing-status"></div>
+                </div>
+            </div>
+
             <!-- Current Songs List -->
             <div class="songs-section">
                 <h3>Current Songs</h3>
@@ -58,8 +108,16 @@
                         <div class="song-info">
                             <h4>{{ song.title }} - {{ song.artist }}</h4>
                             <p>Week {{ song.week }} | Uploaded: {{ song.upload_date }}</p>
-                            {% if song.has_frequency_versions %}
-                            <span class="status-badge status-success">✓ Frequency versions available</span>
+                            {% if song.is_active %}
+                            <span class="status-badge status-success">Active</span>
+                            {% else %}
+                            <form action="{{ url_for('set_active', song_id=song.id) }}" method="post" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-primary">Set Active</button>
+                            </form>
+                            {% endif %}
+                            {% if song.available_frequencies %}
+                            <span class="status-badge status-success">✓ {{ song.available_frequencies|length }} frequency versions available</span>
+                            <small>Frequencies: {{ song.available_frequencies|join(', ') }}</small>
                             {% else %}
                             <span class="status-badge status-warning">⚠ No frequency versions</span>
                             {% endif %}
