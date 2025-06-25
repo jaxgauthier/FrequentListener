@@ -21,34 +21,7 @@
         <div class="admin-container">
             <h2>Song Management</h2>
             
-            <!-- Upload New Song -->
-            <div class="upload-section">
-                <h3>Add New Song</h3>
-                <form action="/admin/upload" method="POST" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label for="songFile">Select Audio File:</label>
-                        <input type="file" id="songFile" name="file" accept=".mp3,.wav" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="songTitle">Song Title:</label>
-                        <input type="text" id="songTitle" name="title" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="songArtist">Artist:</label>
-                        <input type="text" id="songArtist" name="artist" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="songWeek">Week Number:</label>
-                        <input type="number" id="songWeek" name="week" required>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">Upload Song</button>
-                </form>
-            </div>
-
+  
             <!-- Spotify Search and Auto-Processing -->
             <div class="spotify-section">
                 <h3>🎵 Search Spotify & Auto-Process</h3>

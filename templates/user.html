@@ -5,13 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Frequency Game</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
 </head>
 <body>
     <div class="page-container">
-        <!-- Title -->
-        <header class="title-section">
-            <h1> Build your Frequency</h1>
-        </header>
+        <!-- Simple Logo Navigation -->
+        <nav class="logo-nav">
+            <div class="logo-container">
+                <button class="logo-btn" onclick="toggleDropdown()">
+                    <span class="logo-icon">👤</span>
+                </button>
+                <div class="dropdown-menu" id="dropdownMenu">
+                    {% if user %}
+                        <div class="dropdown-header">
+                            <span class="user-avatar">👤</span>
+                            <span class="username">{{ user.username }}</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('profile') }}" class="dropdown-item">Profile</a>
+                        <a href="{{ url_for('logout') }}" class="dropdown-item">Logout</a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="dropdown-item">Login</a>
+                        <a href="{{ url_for('signup') }}" class="dropdown-item">Sign Up</a>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+
+        <!-- Game Title -->
+        <div class="game-title">
+            <h1>🎵 Frequent Listener</h1>
+        </div>
 
         <!-- Rules Section -->
         <section class="rules-section">
@@ -22,12 +46,28 @@
                 <li>Click the + button to reveal easier versions</li>
                 <li>Use the guess form below to submit your answer</li>
                 <li>You can guess at any time during the game</li>
+                <li>Score starts at 7 and decreases by 1 for each difficulty level revealed</li>
+                {% if not user %}
+                <li><a href="{{ url_for('login') }}" style="color: #667eea;">Sign in</a> to track your progress!</li>
+                {% endif %}
             </ul>
         </section>
 
         <!-- Audio Players -->
         <section class="audio-section">
             <h3>Listen to the Reconstructed Audio</h3>
+            
+            <!-- Score Display -->
+            <div class="score-display">
+                <div class="score-info">
+                    <span class="score-label">Current Score:</span>
+                    <span class="score-value" id="scoreDisplay">7</span>
+                </div>
+                <div class="score-explanation">
+                    <small>Score starts at 7 and decreases by 1 for each difficulty level revealed</small>
+                </div>
+            </div>
+            
             <div class="audio-players">
                 {% if current_song and current_song.available_frequencies %}
                 {% set difficulty_labels = {
@@ -66,6 +106,8 @@
         <section class="guess-section">
             <h3>Make Your Guess</h3>
             <form id="guessForm" class="guess-form">
+                <input type="hidden" id="difficultyLevel" name="difficulty_level" value="0">
+                <input type="hidden" id="currentScore" name="current_score" value="7">
                 <div class="form-group">
                     <label for="songGuess">Song Title:</label>
                     <div class="search-container">
@@ -83,6 +125,50 @@
             <div id="resultMessage"></div>
             <div id="correctAnswer" class="correct-answer"></div>
         </section>
+
+        <!-- User Stats Section (only show if logged in) -->
+        {% if user %}
+        <section class="user-stats-section" style="display: none;">
+            <h3>Current Song Stats</h3>
+            
+            <!-- Check if user has already played this song -->
+            {% if stats and stats.has_played_current %}
+            <div class="already-played-message">
+                <p>You have already played this song. Wait for the next song to be active.</p>
+            </div>
+            {% endif %}
+            
+            <!-- Average Score for Current Song -->
+            <div class="average-score-card">
+                <div class="average-score-info">
+                    <span class="average-score-label">Average Score:</span>
+                    <span class="average-score-value">{{ "%.1f"|format(stats.song_stats.average_score) }}</span>
+                </div>
+                <div class="average-score-explanation">
+                    <small>Average score for {{ current_song.title }} by {{ current_song.artist }}</small>
+                </div>
+            </div>
+            
+            <!-- Points Distribution Bar Graph -->
+            <div class="points-distribution">
+                <h4>Your All-Time Score Distribution</h4>
+                <div class="bar-graph">
+                    {% for score in range(8) %}
+                    <div class="bar-group">
+                        <div class="bar-label">{{ score }}</div>
+                        <div class="bar-container">
+                            <div class="bar" style="height: {{ (stats.individual_stats.points_distribution.get(score, 0) / stats.individual_stats.max_count * 100) if stats.individual_stats.max_count > 0 else 0 }}%"></div>
+                        </div>
+                        <div class="bar-count">{{ stats.individual_stats.points_distribution.get(score, 0) }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="graph-explanation">
+                    <small>Your all-time score distribution across all songs</small>
+                </div>
+            </div>
+        </section>
+        {% endif %}
     </div>
 
     <script src="{{ url_for('static', filename='js/user.js') }}"></script>

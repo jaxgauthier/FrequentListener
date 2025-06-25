@@ -290,7 +290,7 @@ body {
     border: 1px solid #ddd;
     border-top: none;
     border-radius: 0 0 4px 4px;
-    max-height: 200px;
+    max-height: 120px;
     overflow-y: auto;
     z-index: 1000;
     display: none;
@@ -298,7 +298,7 @@ body {
 }
 
 .spotify-suggestion-item {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     cursor: pointer;
     border-bottom: 1px solid #f0f0f0;
     transition: background-color 0.2s ease;
@@ -315,16 +315,17 @@ body {
 .suggestion-title {
     font-weight: bold;
     color: #333;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
+    font-size: 0.9rem;
 }
 
 .suggestion-artist {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #666;
 }
 
 .suggestion-album {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: #999;
     font-style: italic;
 }
@@ -381,4 +382,70 @@ body {
     color: #721c24;
     border: 1px solid #f5c6cb;
     display: block;
+}
+
+/* Preview Section */
+.preview-section {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+.preview-section h5 {
+    color: #495057;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.preview-audio {
+    margin-bottom: 1rem;
+}
+
+.preview-audio audio {
+    width: 100%;
+    max-width: 400px;
+}
+
+.preview-info {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+    border-radius: 4px;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.preview-info small {
+    color: #1976d2;
+}
+
+/* Button Group */
+.button-group {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.button-group .btn {
+    flex: 1;
+    min-width: 200px;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-secondary:disabled {
+    background-color: #adb5bd;
+    cursor: not-allowed;
 } 

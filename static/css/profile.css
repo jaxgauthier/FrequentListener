@@ -1,0 +1,249 @@
+/* Navigation Bar */
+.nav-bar {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    margin-bottom: 2rem;
+}
+
+.nav-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #333;
+    text-decoration: none;
+}
+
+.nav-links {
+    display: flex;
+    gap: 2rem;
+}
+
+.nav-links a {
+    color: #666;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    color: #667eea;
+}
+
+/* Profile Header */
+.profile-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    color: white;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.avatar {
+    font-size: 3rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-details h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.user-details p {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+    opacity: 0.9;
+}
+
+.user-details small {
+    opacity: 0.7;
+    font-size: 0.9rem;
+}
+
+/* Stats Overview */
+.stats-overview {
+    margin-bottom: 3rem;
+}
+
+.stats-overview h2 {
+    color: #e3e3e3;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Recent Activity */
+.recent-activity {
+    margin-bottom: 3rem;
+}
+
+.recent-activity h2 {
+    color: #e3e3e3;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+}
+
+.activity-list {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.activity-item {
+    padding: 1.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.3s ease;
+}
+
+.activity-item:hover {
+    background-color: #f8f9fa;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-song {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.activity-details {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.activity-result {
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+}
+
+.activity-result.correct {
+    background: #d4edda;
+    color: #155724;
+}
+
+.activity-result.incorrect {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.activity-difficulty {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.activity-time {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.no-activity {
+    background: white;
+    border-radius: 12px;
+    padding: 3rem;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.no-activity p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .nav-content {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .nav-links {
+        gap: 1rem;
+    }
+    
+    .user-info {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .activity-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+} 

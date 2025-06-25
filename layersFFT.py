@@ -2,7 +2,6 @@ from manim_to_audio import generate_audio_from_frequencies, save_audio, plot_and
 import numpy as np
 import soundfile as sf
 import os
-import DisplayWAV
 from helpers.read_wav_file import read_wav_file
 import matplotlib.pyplot as plt
 from manim import *

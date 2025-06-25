@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Frequent Listener</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
+</head>
+<body>
+    <div class="page-container">
+        <!-- Navigation -->
+        <nav class="nav-bar">
+            <div class="nav-content">
+                <a href="{{ url_for('user_page') }}" class="nav-logo">🎵 Frequent Listener</a>
+                <div class="nav-links">
+                    <a href="{{ url_for('user_page') }}">Play Game</a>
+                    <a href="{{ url_for('profile') }}" class="active">Profile</a>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Profile Header -->
+        <header class="profile-header">
+            <div class="user-info">
+                <div class="avatar">👤</div>
+                <div class="user-details">
+                    <h1>{{ user.username }}</h1>
+                    <p>{{ user.email }}</p>
+                    <small>Member since {{ user.created_at.split(' ')[0] if user.created_at else 'Unknown' }}</small>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Overview -->
+        <section class="stats-overview">
+            <h2>Your Stats</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">{{ stats.total_guesses }}</div>
+                    <div class="stat-label">Total Guesses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ stats.correct_guesses }}</div>
+                    <div class="stat-label">Correct Guesses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ "%.1f"|format(stats.accuracy) }}%</div>
+                    <div class="stat-label">Accuracy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ stats.songs_attempted }}</div>
+                    <div class="stat-label">Songs Attempted</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Activity -->
+        <section class="recent-activity">
+            <h2>Recent Activity</h2>
+            {% if stats.recent_activity %}
+            <div class="activity-list">
+                {% for activity in stats.recent_activity %}
+                <div class="activity-item">
+                    <div class="activity-song">
+                        <strong>{{ activity.title }}</strong> by {{ activity.artist }}
+                    </div>
+                    <div class="activity-details">
+                        <span class="activity-result {% if activity.correct_guess %}correct{% else %}incorrect{% endif %}">
+                            {% if activity.correct_guess %}✅ Correct{% else %}❌ Incorrect{% endif %}
+                        </span>
+                        <span class="activity-difficulty">
+                            {{ activity.difficulty_level }} frequencies
+                        </span>
+                        <span class="activity-time">
+                            {{ activity.guessed_at.split(' ')[0] if activity.guessed_at else 'Unknown' }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="no-activity">
+                <p>No activity yet. Start playing to see your stats!</p>
+                <a href="{{ url_for('user_page') }}" class="btn btn-primary">Play Now</a>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</body>
+</html> 

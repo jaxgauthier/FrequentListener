@@ -1,11 +1,28 @@
 // Progressive Difficulty Audio Game JavaScript
 document.addEventListener('DOMContentLoaded', function() {
+    // Dropdown functionality
+    window.toggleDropdown = function() {
+        const dropdown = document.getElementById('dropdownMenu');
+        dropdown.classList.toggle('show');
+    };
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('dropdownMenu');
+        const logoBtn = document.querySelector('.logo-btn');
+        
+        if (!logoBtn.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+
+    // Get DOM elements
     const guessForm = document.getElementById('guessForm');
+    const songGuessInput = document.getElementById('songGuess');
+    const searchSuggestions = document.getElementById('searchSuggestions');
     const resultsSection = document.getElementById('resultsSection');
     const resultMessage = document.getElementById('resultMessage');
     const correctAnswer = document.getElementById('correctAnswer');
-    const songGuessInput = document.getElementById('songGuess');
-    const searchSuggestions = document.getElementById('searchSuggestions');
     
     console.log('DOM loaded, form found:', guessForm);
     
@@ -31,6 +48,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize: get frequencies and show current difficulty
     getAvailableFrequencies();
     showCurrentDifficulty();
+    
+    // Set initial difficulty level in hidden input
+    const difficultyInput = document.getElementById('difficultyLevel');
+    if (difficultyInput) {
+        difficultyInput.value = currentDifficulty;
+    }
+    
+    // Set initial score (starts at maximum for hardest difficulty)
+    const scoreInput = document.getElementById('currentScore');
+    if (scoreInput) {
+        const initialScore = Math.max(0, 7 - currentDifficulty);
+        scoreInput.value = initialScore;
+    }
+    
+    // Function to update score display
+    function updateScoreDisplay() {
+        const scoreInput = document.getElementById('currentScore');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        if (scoreInput && scoreDisplay) {
+            scoreDisplay.textContent = scoreInput.value;
+        }
+    }
+    
+    // Initialize score display
+    updateScoreDisplay();
 
     // Spotify search functionality
     songGuessInput.addEventListener('input', function() {
@@ -112,7 +154,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function showSuggestions(tracks) {
         searchSuggestions.innerHTML = '';
         
-        tracks.forEach((track, index) => {
+        // Limit to first 5 suggestions to keep dropdown small
+        const limitedTracks = tracks.slice(0, 5);
+        
+        limitedTracks.forEach((track, index) => {
             const suggestionItem = document.createElement('div');
             suggestionItem.className = 'search-suggestion-item';
             suggestionItem.innerHTML = `
@@ -199,6 +244,29 @@ document.addEventListener('DOMContentLoaded', function() {
         return currentDifficulty >= frequencies.length - 1; // -1 because we start at 0
     }
 
+    // Function to show all frequencies (for after correct guess)
+    function showAllFrequencies() {
+        // Set difficulty to show all frequencies
+        currentDifficulty = frequencies.length - 1;
+        showCurrentDifficulty();
+        
+        // Update the hidden difficulty level input
+        const difficultyInput = document.getElementById('difficultyLevel');
+        if (difficultyInput) {
+            difficultyInput.value = currentDifficulty;
+        }
+        
+        // Update the current score to 0 (since they've seen all difficulties)
+        const scoreInput = document.getElementById('currentScore');
+        if (scoreInput) {
+            scoreInput.value = 0;
+            updateScoreDisplay();
+        }
+        
+        // Hide the plus button since we've shown all difficulties
+        document.querySelector('.plus-button-container').style.display = 'none';
+    }
+
     // Global function for adding next difficulty level
     window.addNextDifficulty = function() {
         console.log('Adding next difficulty level');
@@ -208,6 +276,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Show results since we've gone through all frequencies
             resultsSection.style.display = 'block';
             resultMessage.innerHTML = '<p style="color: orange; font-weight: bold;">You\'ve revealed all difficulty levels. Here\'s the answer:</p>';
+            
+            // Show stats section after all difficulties revealed
+            const statsSection = document.querySelector('.user-stats-section');
+            if (statsSection) {
+                statsSection.style.display = 'block';
+            }
             
             // Get the correct answer from the server
             fetch('/submit_guess', {
@@ -249,79 +323,170 @@ document.addEventListener('DOMContentLoaded', function() {
         currentDifficulty++;
         showCurrentDifficulty();
         
+        // Update the hidden difficulty level input
+        const difficultyInput = document.getElementById('difficultyLevel');
+        if (difficultyInput) {
+            difficultyInput.value = currentDifficulty;
+        }
+        
+        // Update the current score (decreases with each difficulty level)
+        const scoreInput = document.getElementById('currentScore');
+        if (scoreInput) {
+            // Score starts at 7 for hardest difficulty (0 difficulty level)
+            // and decreases by 1 for each easier level revealed
+            const newScore = Math.max(0, 7 - currentDifficulty);
+            scoreInput.value = newScore;
+            updateScoreDisplay();
+        }
+        
         // If we've shown all difficulties, hide the plus button
         if (currentDifficulty >= frequencies.length - 1) {
             document.querySelector('.plus-button-container').style.display = 'none';
         }
     };
 
-    guessForm.addEventListener('submit', function(e) {
+    // Helper to update the stats section dynamically
+    async function updateStatsSection() {
+        const statsSection = document.querySelector('.user-stats-section');
+        if (!statsSection) return;
+        // Fetch latest stats from backend
+        const res = await fetch('/current_stats');
+        const data = await res.json();
+        if (!data.success) return;
+        const stats = data.stats;
+        const song = data.song;
+        // Update average score (global)
+        const avgScoreElem = statsSection.querySelector('.average-score-value');
+        if (avgScoreElem) {
+            avgScoreElem.textContent = stats.song_stats.average_score.toFixed(1);
+        }
+        // Update explanation
+        const avgExpElem = statsSection.querySelector('.average-score-explanation small');
+        if (avgExpElem) {
+            avgExpElem.textContent = `Average score for ${song.title} by ${song.artist}`;
+        }
+        // Update bar graph (individual)
+        for (let score = 0; score < 8; score++) {
+            const bar = statsSection.querySelector(`.bar-group:nth-child(${score+1}) .bar`);
+            const count = statsSection.querySelector(`.bar-group:nth-child(${score+1}) .bar-count`);
+            if (bar) {
+                const pct = stats.individual_stats.max_count > 0 ? (stats.individual_stats.points_distribution[score] || 0) / stats.individual_stats.max_count * 100 : 0;
+                bar.style.height = pct + '%';
+            }
+            if (count) {
+                count.textContent = stats.individual_stats.points_distribution[score] || 0;
+            }
+        }
+        // Show/hide already played message
+        const alreadyMsg = statsSection.querySelector('.already-played-message');
+        if (alreadyMsg) {
+            alreadyMsg.style.display = stats.has_played_current ? 'block' : 'none';
+        }
+        // Show stats section
+        statsSection.style.display = 'block';
+        // Hide guess UI if already played
+        if (stats.has_played_current) {
+            if (guessForm) guessForm.style.display = 'none';
+            const plusBtn = document.querySelector('.plus-button-container');
+            if (plusBtn) plusBtn.style.display = 'none';
+        }
+    }
+
+    // On page load, check if user has already played and show stats if so
+    async function checkIfAlreadyPlayed() {
+        try {
+            const res = await fetch('/current_stats');
+            const data = await res.json();
+            if (data.success && data.stats.has_played_current) {
+                // User has already played this song, show all frequencies and stats
+                showAllFrequencies();
+                await updateStatsSection();
+            }
+        } catch (error) {
+            console.error('Error checking if already played:', error);
+        }
+    }
+
+    // Check on page load
+    checkIfAlreadyPlayed();
+
+    guessForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         console.log('Form submitted');
-        
         const formData = new FormData(guessForm);
         const songGuess = formData.get('song_guess');
-        
         console.log('Song guess:', songGuess);
+        const response = await fetch('/submit_guess', { method: 'POST', body: formData });
+        const data = await response.json();
+        console.log('Response data:', data);
         
-        fetch('/submit_guess', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            console.log('Response status:', response.status);
-            return response.json();
-        })
-        .then(data => {
-            console.log('Response data:', data);
+        // Check if user has already played this song
+        if (data.already_played) {
+            resultsSection.style.display = 'block';
+            resultMessage.innerHTML = `<p style="color: orange; font-weight: bold;">${data.message}</p>`;
+            correctAnswer.textContent = data.correct_answer;
             
-            if (data.correct) {
-                // Show results when they get it right
-                resultsSection.style.display = 'block';
-                resultMessage.innerHTML = '<p style="color: green; font-weight: bold;">Correct! Well done!</p>';
-                correctAnswer.textContent = data.correct_answer;
-                // Don't reveal next difficulty if they got it right
-            } else {
-                // Only show results if they've gone through all frequencies
-                if (shouldShowResults()) {
-                    resultsSection.style.display = 'block';
-                    resultMessage.innerHTML = '<p style="color: red; font-weight: bold;">Incorrect. Here\'s the answer:</p>';
-                    correctAnswer.textContent = data.correct_answer;
-                } else {
-                    // Hide results section and just show a simple message
-                    resultsSection.style.display = 'none';
-                    // Show a temporary message (optional)
-                    const tempMessage = document.createElement('div');
-                    tempMessage.innerHTML = '<p style="color: red; font-weight: bold; text-align: center; margin: 1rem 0;">Incorrect. Try again!</p>';
-                    tempMessage.id = 'tempMessage';
-                    
-                    // Remove any existing temp message
-                    const existingTemp = document.getElementById('tempMessage');
-                    if (existingTemp) {
-                        existingTemp.remove();
-                    }
-                    
-                    // Insert temp message after the form
-                    guessForm.parentNode.insertBefore(tempMessage, guessForm.nextSibling);
-                    
-                    // Remove temp message after 2 seconds
-                    setTimeout(() => {
-                        const tempMsg = document.getElementById('tempMessage');
-                        if (tempMsg) {
-                            tempMsg.remove();
-                        }
-                    }, 2000);
-                }
-                // Reveal next difficulty level after incorrect guess
-                revealNextDifficulty();
+            // Show stats section since they've already played
+            await updateStatsSection();
+            return;
+        }
+        
+        if (data.correct) {
+            // Show results when they get it right
+            resultsSection.style.display = 'block';
+            resultMessage.innerHTML = `<p style="color: green; font-weight: bold;">Correct! Well done! Score: ${data.score}</p>`;
+            correctAnswer.textContent = data.correct_answer;
+            // Show stats section after correct guess
+            await updateStatsSection();
+            // Show all frequencies after correct guess
+            showAllFrequencies();
+        } else {
+            // Decrease score for incorrect guess (for all users)
+            const scoreInput = document.getElementById('currentScore');
+            if (scoreInput) {
+                const currentScore = parseInt(scoreInput.value);
+                const newScore = Math.max(0, currentScore - 1);
+                scoreInput.value = newScore;
+                updateScoreDisplay();
             }
             
-            // Clear the form for the next guess
-            guessForm.reset();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error submitting guess');
-        });
+            // Only show results if they've gone through all frequencies
+            if (shouldShowResults()) {
+                resultsSection.style.display = 'block';
+                resultMessage.innerHTML = '<p style="color: red; font-weight: bold;">Incorrect. Here\'s the answer:</p>';
+                correctAnswer.textContent = data.correct_answer;
+                // Show stats section after all difficulties revealed
+                await updateStatsSection();
+            } else {
+                // Hide results section and just show a simple message
+                resultsSection.style.display = 'none';
+                // Show a temporary message (optional)
+                const tempMessage = document.createElement('div');
+                tempMessage.innerHTML = '<p style="color: red; font-weight: bold; text-align: center; margin: 1rem 0;">Incorrect. Try again!</p>';
+                tempMessage.id = 'tempMessage';
+                
+                // Remove any existing temp message
+                const existingTemp = document.getElementById('tempMessage');
+                if (existingTemp) {
+                    existingTemp.remove();
+                }
+                
+                // Insert temp message after the form
+                guessForm.parentNode.insertBefore(tempMessage, guessForm.nextSibling);
+                
+                // Remove temp message after 2 seconds
+                setTimeout(() => {
+                    const tempMsg = document.getElementById('tempMessage');
+                    if (tempMsg) {
+                        tempMsg.remove();
+                    }
+                }, 2000);
+            }
+            // Reveal next difficulty level after incorrect guess
+            revealNextDifficulty();
+        }
+        
+        // Clear the form for the next guess
+        guessForm.reset();
     });
 }); 

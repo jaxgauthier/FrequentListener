@@ -119,7 +119,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function showSpotifySuggestions(tracks) {
         spotifySuggestions.innerHTML = '';
         
-        tracks.forEach((track, index) => {
+        // Limit to first 5 suggestions to keep dropdown small
+        const limitedTracks = tracks.slice(0, 5);
+        
+        limitedTracks.forEach((track, index) => {
             const suggestionItem = document.createElement('div');
             suggestionItem.className = 'spotify-suggestion-item';
             suggestionItem.innerHTML = `

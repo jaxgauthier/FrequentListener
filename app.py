@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
 import os
 import uuid
+import json
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import numpy as np
 import soundfile as sf
@@ -14,34 +15,23 @@ import yt_dlp
 import re
 import glob
 import sqlite3
+import hashlib
+import secrets
+from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Spotify API configuration
 # TODO: Replace these with your actual Spotify credentials from https://developer.spotify.com/dashboard
-SPOTIFY_CLIENT_ID = '191d5956bb7e4beea2ec9f1830b3daa0'  # Replace with your actual Client ID from Spotify Developer Dashboard
-SPOTIFY_CLIENT_SECRET = '14ffa485968442c88be6abad35b71ece'  # Replace with your actual Client Secret from Spotify Developer Dashboard
+SPOTIFY_CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID', '191d5956bb7e4beea2ec9f1830b3daa0')
+SPOTIFY_CLIENT_SECRET = os.environ.get('SPOTIFY_CLIENT_SECRET', '14ffa485968442c88be6abad35b71ece')
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs('OutputWAVS', exist_ok=True)
-
-# Initialize with Mr Brightside for demo
-songs = [
-    {
-        'id': 1,
-        'title': 'Mr. Brightside',
-        'artist': 'The Killers',
-        'week': 1,
-        'upload_date': '2024-01-01',
-        'has_frequency_versions': True,
-        'base_filename': 'MrBrightside'
-    }
-]
-current_week = 1
 
 def process_song_through_dft(input_file, output_folder, base_filename, start_time=0, end_time=None):
     """
@@ -215,6 +205,256 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Authentication helper functions
+def hash_password(password):
+    """Hash a password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def generate_session_token():
+    """Generate a secure random session token"""
+    return secrets.token_urlsafe(32)
+
+def create_user_session(user_id):
+    """Create a new session for a user"""
+    token = generate_session_token()
+    expires_at = datetime.now() + timedelta(days=30)  # 30 day session
+    
+    conn = get_db_connection()
+    conn.execute('''
+        INSERT INTO user_sessions (user_id, session_token, expires_at)
+        VALUES (?, ?, ?)
+    ''', (user_id, token, expires_at.strftime('%Y-%m-%d %H:%M:%S')))
+    conn.commit()
+    conn.close()
+    
+    return token
+
+def get_user_from_session():
+    """Get user from session token"""
+    session_token = request.cookies.get('session_token')
+    if not session_token:
+        return None
+    
+    conn = get_db_connection()
+    user = conn.execute('''
+        SELECT u.* FROM users u
+        JOIN user_sessions s ON u.id = s.user_id
+        WHERE s.session_token = ? AND s.expires_at > ?
+    ''', (session_token, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))).fetchone()
+    conn.close()
+    
+    return user
+
+def login_required(f):
+    """Decorator to require login for certain routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = get_user_from_session()
+        if not user:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """Decorator to require admin access"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = get_user_from_session()
+        if not user:
+            return redirect(url_for('login'))
+        
+        # Check if user is admin (using environment variables)
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_password_hash = hash_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
+        
+        if user['username'] != admin_username or user['password_hash'] != admin_password_hash:
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_user_stats(user_id, current_song_id=None):
+    """Get stats for a user, focusing on current song performance and all-time stats"""
+    conn = get_db_connection()
+    
+    # Check if user has already played the current song
+    has_played_current = False
+    if current_song_id:
+        played_check = conn.execute('''
+            SELECT has_played FROM user_stats 
+            WHERE user_id = ? AND song_id = ?
+        ''', (user_id, current_song_id)).fetchone()
+        has_played_current = played_check['has_played'] if played_check else False
+    
+    # Get global song stats for the current song (for average score)
+    global_song_stats = None
+    if current_song_id:
+        song_stats_row = conn.execute('''
+            SELECT * FROM song_stats WHERE song_id = ?
+        ''', (current_song_id,)).fetchone()
+        
+        if song_stats_row:
+            global_points_distribution = json.loads(song_stats_row['points_distribution'])
+            global_max_count = max(global_points_distribution.values()) if global_points_distribution.values() else 1
+            
+            global_song_stats = {
+                'average_score': song_stats_row['average_score'] or 0,
+                'points_distribution': global_points_distribution,
+                'max_count': global_max_count,
+                'total_plays': song_stats_row['total_plays'] or 0
+            }
+    
+    # If no global song stats exist, create default
+    if not global_song_stats:
+        global_song_stats = {
+            'average_score': 0,
+            'points_distribution': {i: 0 for i in range(8)},
+            'max_count': 1,
+            'total_plays': 0
+        }
+    
+    # Get ALL-TIME individual user stats across all songs (for personal bar chart)
+    all_time_stats = conn.execute('''
+        SELECT difficulty_level, correct_guess FROM user_stats 
+        WHERE user_id = ? AND correct_guess = 1
+    ''', (user_id,)).fetchall()
+    
+    # Create all-time points distribution
+    all_time_points_distribution = {i: 0 for i in range(8)}
+    for stat in all_time_stats:
+        score = 7 - stat['difficulty_level']  # Calculate score from difficulty level
+        all_time_points_distribution[score] += 1
+    
+    all_time_max_count = max(all_time_points_distribution.values()) if all_time_points_distribution.values() else 1
+    
+    individual_stats = {
+        'points_distribution': all_time_points_distribution,
+        'max_count': all_time_max_count,
+        'total_correct_guesses': sum(all_time_points_distribution.values())
+    }
+    
+    conn.close()
+    
+    return {
+        'has_played_current': has_played_current,
+        'song_stats': global_song_stats,  # Global stats for current song average
+        'individual_stats': individual_stats  # All-time stats for personal bar chart
+    }
+
+def update_song_stats(song_id, final_score, is_correct):
+    """Update global song statistics"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get current song stats
+        song_stats = conn.execute('SELECT * FROM song_stats WHERE song_id = ?', (song_id,)).fetchone()
+        
+        if song_stats:
+            # Debug: Print the raw database values
+            print(f"Raw database values: total_plays={song_stats['total_plays']} (type: {type(song_stats['total_plays'])})")
+            print(f"Raw database values: total_correct_guesses={song_stats['total_correct_guesses']} (type: {type(song_stats['total_correct_guesses'])})")
+            
+            # Update existing stats - ensure proper type conversion
+            total_plays = int(song_stats['total_plays']) + 1
+            total_correct = int(song_stats['total_correct_guesses']) + (1 if is_correct else 0)
+            
+            # Get current points distribution
+            points_dist = json.loads(song_stats['points_distribution'])
+            print(f"Current points_dist: {points_dist} (type: {type(points_dist)})")
+            
+            # Convert all keys to integers to ensure consistency
+            points_dist = {int(k): int(v) for k, v in points_dist.items()}
+            print(f"Converted points_dist: {points_dist}")
+            
+            # Update points distribution if correct
+            if is_correct:
+                print(f"Updating points_dist for score {final_score}")
+                print(f"Current value for {final_score}: {points_dist.get(final_score, 0)} (type: {type(points_dist.get(final_score, 0))})")
+                points_dist[final_score] = points_dist.get(final_score, 0) + 1
+                print(f"New value for {final_score}: {points_dist[final_score]}")
+            
+            # Calculate new average
+            print(f"Calculating average from points_dist: {points_dist}")
+            total_score = sum(score * count for score, count in points_dist.items())
+            total_correct_plays = sum(points_dist.values())
+            new_average = total_score / total_correct_plays if total_correct_plays > 0 else 0
+            
+            print(f"Updating song stats: final_score={final_score}, is_correct={is_correct}")
+            print(f"Points distribution: {points_dist}")
+            print(f"Total score: {total_score}, Total correct plays: {total_correct_plays}")
+            print(f"New average: {new_average}")
+            
+            cursor.execute('''
+                UPDATE song_stats 
+                SET total_plays = ?, total_correct_guesses = ?, average_score = ?, 
+                    points_distribution = ?, last_updated = ?
+                WHERE song_id = ?
+            ''', (total_plays, total_correct, new_average, json.dumps(points_dist), 
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'), song_id))
+        else:
+            # Create new song stats
+            points_dist = {final_score: 1} if is_correct else {i: 0 for i in range(8)}
+            # Ensure all keys are integers
+            points_dist = {int(k): int(v) for k, v in points_dist.items()}
+            # Calculate average the same way as for updates
+            total_score = sum(score * count for score, count in points_dist.items())
+            total_correct_plays = sum(points_dist.values())
+            average_score = total_score / total_correct_plays if total_correct_plays > 0 else 0
+            
+            print(f"Creating new song stats: final_score={final_score}, is_correct={is_correct}")
+            print(f"Points distribution: {points_dist}")
+            print(f"Total score: {total_score}, Total correct plays: {total_correct_plays}")
+            print(f"Initial average: {average_score}")
+            
+            cursor.execute('''
+                INSERT INTO song_stats (song_id, total_plays, total_correct_guesses, 
+                                       average_score, points_distribution, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (song_id, 1, 1 if is_correct else 0, average_score, 
+                  json.dumps(points_dist), datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        
+        conn.commit()
+        
+    except Exception as e:
+        print(f"Error updating song stats: {e}")
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+    finally:
+        conn.close()
+
+def reset_has_played_for_all_users():
+    """Reset has_played flags for all users when active song changes"""
+    conn = get_db_connection()
+    conn.execute('UPDATE user_stats SET has_played = 0')
+    conn.commit()
+    conn.close()
+    print("Reset has_played flags for all users")
+
+@app.route('/current_stats')
+def current_stats():
+    """Get current stats for the logged-in user and active song"""
+    user = get_user_from_session()
+    conn = get_db_connection()
+    current_song = conn.execute('SELECT * FROM songs WHERE is_active = 1').fetchone()
+    conn.close()
+    
+    if not user or not current_song:
+        return jsonify({'success': False, 'error': 'No user or song'}), 400
+    
+    stats = get_user_stats(user['id'], current_song['id'])
+    
+    # Also return song title/artist for context
+    return jsonify({
+        'success': True,
+        'stats': stats,
+        'song': {
+            'title': current_song['title'],
+            'artist': current_song['artist']
+        }
+    })
+
 # Routes
 @app.route('/spotify_search')
 def spotify_search():
@@ -277,21 +517,146 @@ def spotify_search():
         print(f"Spotify search error: {e}")
         return jsonify({'tracks': [], 'error': 'Search failed'})
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Handle user login"""
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'Username and password are required'}), 400
+        
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
+        
+        if not user or user['password_hash'] != hash_password(password):
+            return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+        
+        # Create session
+        session_token = create_user_session(user['id'])
+        
+        # Update last login
+        conn = get_db_connection()
+        conn.execute('UPDATE users SET last_login = ? WHERE id = ?', 
+                    (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), user['id']))
+        conn.commit()
+        conn.close()
+        
+        response = jsonify({'success': True, 'message': 'Login successful'})
+        response.set_cookie('session_token', session_token, max_age=30*24*60*60, httponly=True)
+        return response
+    
+    return render_template('login.html')
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """Handle user registration"""
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        confirm_password = data.get('confirm_password', '')
+        
+        # Validation
+        if not all([username, email, password, confirm_password]):
+            return jsonify({'success': False, 'error': 'All fields are required'}), 400
+        
+        if password != confirm_password:
+            return jsonify({'success': False, 'error': 'Passwords do not match'}), 400
+        
+        if len(password) < 6:
+            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+        
+        if not re.match(r'^[a-zA-Z0-9_]+$', username):
+            return jsonify({'success': False, 'error': 'Username can only contain letters, numbers, and underscores'}), 400
+        
+        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+            return jsonify({'success': False, 'error': 'Invalid email format'}), 400
+        
+        conn = get_db_connection()
+        
+        # Check if username or email already exists
+        existing_user = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', 
+                                   (username, email)).fetchone()
+        if existing_user:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Username or email already exists'}), 409
+        
+        # Create new user
+        password_hash = hash_password(password)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO users (username, email, password_hash)
+            VALUES (?, ?, ?)
+        ''', (username, email, password_hash))
+        
+        user_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        # Create session
+        session_token = create_user_session(user_id)
+        
+        response = jsonify({'success': True, 'message': 'Account created successfully'})
+        response.set_cookie('session_token', session_token, max_age=30*24*60*60, httponly=True)
+        return response
+    
+    return render_template('signup.html')
+
+@app.route('/logout')
+def logout():
+    """Handle user logout"""
+    session_token = request.cookies.get('session_token')
+    if session_token:
+        conn = get_db_connection()
+        conn.execute('DELETE FROM user_sessions WHERE session_token = ?', (session_token,))
+        conn.commit()
+        conn.close()
+    
+    response = redirect(url_for('user_page'))
+    response.delete_cookie('session_token')
+    return response
+
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page with stats"""
+    user = get_user_from_session()
+    if not user:
+        return redirect(url_for('login'))
+    stats = get_user_stats(user['id'])
+    return render_template('profile.html', user=user, stats=stats)
+
 @app.route('/')
 def user_page():
+    """Main user page"""
+    # Get current active song
     conn = get_db_connection()
-    song = conn.execute('SELECT * FROM songs WHERE is_active = 1').fetchone()
+    current_song = conn.execute('SELECT * FROM songs WHERE is_active = 1').fetchone()
     conn.close()
     
-    if song:
-        # Convert to dict and add available frequencies
-        song_dict = dict(song)
-        song_dict['available_frequencies'] = get_available_frequencies(song_dict['base_filename'])
-        return render_template('user.html', current_song=song_dict)
-    else:
-        return render_template('user.html', current_song=None)
+    # Get user from session (optional - users can play without logging in)
+    user = get_user_from_session()
+    stats = None
+    
+    if user:
+        # Get user stats
+        stats = get_user_stats(user['id'], current_song['id'] if current_song else None)
+    
+    if current_song:
+        # Get available frequencies for this song
+        available_frequencies = get_available_frequencies(current_song['base_filename'])
+        current_song = dict(current_song)
+        current_song['available_frequencies'] = available_frequencies
+    
+    return render_template('user.html', current_song=current_song, user=user, stats=stats)
 
 @app.route('/admin')
+@admin_required
 def admin_page():
     conn = get_db_connection()
     songs = conn.execute('SELECT * FROM songs').fetchall()
@@ -310,6 +675,7 @@ def admin_page():
     return render_template('admin.html', songs=song_list, stats=stats)
 
 @app.route('/admin/upload', methods=['POST'])
+@admin_required
 def admin_upload():
     """Handle song upload from admin"""
     if 'file' not in request.files:
@@ -330,24 +696,24 @@ def admin_upload():
         artist = request.form.get('artist', 'Unknown')
         week = int(request.form.get('week', 1))
         
-        # Create song entry
-        song = {
-            'id': len(songs) + 1,
-            'title': title,
-            'artist': artist,
-            'week': week,
-            'filename': unique_filename,
-            'upload_date': datetime.now().strftime('%Y-%m-%d'),
-            'has_frequency_versions': False  # New uploads don't have frequency versions yet
-        }
+        # Add song to database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO songs (title, artist, week, filename, upload_date, has_frequency_versions, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (title, artist, week, unique_filename, datetime.now().strftime('%Y-%m-%d'), False, 0))
         
-        songs.append(song)
+        song_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
         
-        return jsonify({'success': True, 'message': 'Song uploaded successfully'})
+        return jsonify({'success': True, 'message': 'Song uploaded successfully', 'song_id': song_id})
     
     return jsonify({'error': 'Invalid file'}), 400
 
 @app.route('/admin/delete/<int:song_id>', methods=['DELETE'])
+@admin_required
 def admin_delete(song_id):
     """Delete a song from the database"""
     try:
@@ -386,21 +752,90 @@ def admin_delete(song_id):
 def submit_guess():
     """Handle user guess submission"""
     song_guess = request.form.get('song_guess', '').strip().lower()
+    difficulty_level = int(request.form.get('difficulty_level', 0))  # Current difficulty level
+    current_score = int(request.form.get('current_score', 100))  # Current score
     
-    # Get the current song (most recently added song - last in the list)
-    current_song = songs[-1] if songs else None
+    # Get the current active song from database
+    conn = get_db_connection()
+    current_song = conn.execute('SELECT * FROM songs WHERE is_active = 1').fetchone()
+    conn.close()
     
     if not current_song:
-        return jsonify({'error': 'No song available'}), 400
+        return jsonify({'error': 'No active song available'}), 400
     
-    # Simple string matching (you can make this more sophisticated)
-    correct_song = current_song['title'].lower()
+    # Get correct song info
+    correct_title = current_song['title'].lower()
+    correct_artist = current_song['artist'].lower()
+    correct_title_artist = f"{correct_title} - {correct_artist}"
     
-    is_correct = (song_guess == correct_song)
+    # Check if guess matches title only, artist only, or title - artist format
+    is_correct = (
+        song_guess == correct_title or 
+        song_guess == correct_artist or 
+        song_guess == correct_title_artist
+    )
+    
+    # Calculate final score (score decreases with each difficulty level)
+    # Score starts at 7 for hardest difficulty (0 difficulty level)
+    # and decreases by 1 for each easier level revealed
+    final_score = max(0, 7 - difficulty_level) if is_correct else 0
+    
+    # Track stats if user is logged in
+    user = get_user_from_session()
+    if user:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if user has already played this song
+        existing_stat = conn.execute('''
+            SELECT * FROM user_stats 
+            WHERE user_id = ? AND song_id = ?
+        ''', (user['id'], current_song['id'])).fetchone()
+        
+        if existing_stat and existing_stat['has_played']:
+            # User has already played this song, don't allow another attempt
+            conn.close()
+            return jsonify({
+                'correct': False,
+                'correct_answer': f"{current_song['title']} by {current_song['artist']}",
+                'score': 0,
+                'difficulty_level': difficulty_level,
+                'already_played': True,
+                'message': 'You have already played this song. Wait for the next song to be active.'
+            })
+        
+        if existing_stat:
+            # Update existing stat and mark as played
+            guess_count = existing_stat['guess_count'] + 1
+            cursor.execute('''
+                UPDATE user_stats 
+                SET guess_count = ?, correct_guess = ?, difficulty_level = ?, 
+                    guessed_at = ?, has_played = 1
+                WHERE user_id = ? AND song_id = ?
+            ''', (guess_count, is_correct, difficulty_level, 
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 
+                  user['id'], current_song['id']))
+        else:
+            # Create new stat and mark as played
+            cursor.execute('''
+                INSERT INTO user_stats (user_id, song_id, guess_count, correct_guess, 
+                                       difficulty_level, guessed_at, has_played)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
+            ''', (user['id'], current_song['id'], 1, is_correct, difficulty_level,
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        
+        conn.commit()
+        conn.close()
+        
+        # Update global song stats
+        update_song_stats(current_song['id'], final_score, is_correct)
     
     return jsonify({
         'correct': is_correct,
-        'correct_answer': f"{current_song['title']} by {current_song['artist']}"
+        'correct_answer': f"{current_song['title']} by {current_song['artist']}",
+        'score': final_score,
+        'difficulty_level': difficulty_level,
+        'already_played': False
     })
 
 @app.route('/play/<filename>')
@@ -438,6 +873,7 @@ def play_frequency_audio(song_name, frequency):
     return 'Frequency version not found', 404
 
 @app.route('/admin/process_spotify_song', methods=['POST'])
+@admin_required
 def admin_process_spotify_song():
     """Process a Spotify song through the DFT pipeline"""
     try:
@@ -490,25 +926,22 @@ def admin_process_spotify_song():
         except Exception as e:
             print(f"Warning: Could not clean up temporary file: {e}")
         
-        # Create song entry
-        song = {
-            'id': len(songs) + 1,
-            'title': title,
-            'artist': artist,
-            'album': album,
-            'week': week,
-            'upload_date': datetime.now().strftime('%Y-%m-%d'),
-            'has_frequency_versions': True,
-            'base_filename': base_filename,
-            'spotify_id': spotify_id
-        }
+        # Add song to database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO songs (title, artist, album, week, upload_date, has_frequency_versions, base_filename, spotify_id, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (title, artist, album, week, datetime.now().strftime('%Y-%m-%d'), True, base_filename, spotify_id, 0))
         
-        songs.append(song)
+        song_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
         
         return jsonify({
             'success': True, 
             'message': f'Successfully processed {title} by {artist} ({start_time}s - {end_time}s)',
-            'song_id': song['id']
+            'song_id': song_id
         })
         
     except Exception as e:
@@ -516,13 +949,19 @@ def admin_process_spotify_song():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/set_active/<int:song_id>', methods=['POST'])
+@admin_required
 def set_active(song_id):
     conn = get_db_connection()
     conn.execute('UPDATE songs SET is_active = 0')
     conn.execute('UPDATE songs SET is_active = 1 WHERE id = ?', (song_id,))
     conn.commit()
     conn.close()
+    
+    # Reset has_played flags for all users when active song changes
+    reset_has_played_for_all_users()
+    
     return redirect(url_for('admin_page'))
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001) 
+    port = int(os.environ.get('PORT', 5001))
+    app.run(debug=False, host='0.0.0.0', port=port) 

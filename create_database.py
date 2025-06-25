@@ -19,27 +19,74 @@ def create_database():
     
     # Create songs table
     cursor.execute('''
-        CREATE TABLE songs (
+        CREATE TABLE IF NOT EXISTS songs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             artist TEXT NOT NULL,
-            base_filename TEXT UNIQUE NOT NULL,
-            spotify_id TEXT,
+            album TEXT,
             week INTEGER DEFAULT 1,
-            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT 1,
-            available_frequencies TEXT DEFAULT '[]'
+            upload_date TEXT,
+            filename TEXT,
+            has_frequency_versions BOOLEAN DEFAULT 0,
+            base_filename TEXT,
+            spotify_id TEXT,
+            is_active BOOLEAN DEFAULT 0
         )
     ''')
     
-    # Create users table (for future user accounts)
+    # Create users table
     cursor.execute('''
-        CREATE TABLE users (
+        CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE,
-            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_login TEXT,
             is_active BOOLEAN DEFAULT 1
+        )
+    ''')
+    
+    # Create user_stats table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            song_id INTEGER NOT NULL,
+            guess_count INTEGER DEFAULT 0,
+            correct_guess BOOLEAN DEFAULT 0,
+            difficulty_level INTEGER DEFAULT 0,
+            time_taken_seconds INTEGER,
+            guessed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            has_played BOOLEAN DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (song_id) REFERENCES songs (id)
+        )
+    ''')
+    
+    # Create song_stats table for global song statistics
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS song_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            song_id INTEGER NOT NULL,
+            total_plays INTEGER DEFAULT 0,
+            total_correct_guesses INTEGER DEFAULT 0,
+            average_score REAL DEFAULT 0,
+            points_distribution TEXT DEFAULT '{}',
+            last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (song_id) REFERENCES songs (id)
+        )
+    ''')
+    
+    # Create user_sessions table for remembering users
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_token TEXT UNIQUE NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
     
@@ -95,6 +142,9 @@ def create_database():
     print("📊 Tables created:")
     print("   - songs (stores song information)")
     print("   - users (for future user accounts)")
+    print("   - user_stats (tracks user stats with has_played flag)")
+    print("   - song_stats (tracks global song statistics)")
+    print("   - user_sessions (remembers user sessions)")
     print("   - game_sessions (tracks gameplay)")
     print("   - guesses (tracks individual guesses)")
     print(f"🎵 Added {len(sample_songs)} sample songs")
