@@ -20,14 +20,14 @@ import secrets
 from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.config['SECRET_KEY'] = 'your-secret-key-here-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Spotify API configuration
 # TODO: Replace these with your actual Spotify credentials from https://developer.spotify.com/dashboard
-SPOTIFY_CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID', '191d5956bb7e4beea2ec9f1830b3daa0')
-SPOTIFY_CLIENT_SECRET = os.environ.get('SPOTIFY_CLIENT_SECRET', '14ffa485968442c88be6abad35b71ece')
+SPOTIFY_CLIENT_ID = '191d5956bb7e4beea2ec9f1830b3daa0'
+SPOTIFY_CLIENT_SECRET = '14ffa485968442c88be6abad35b71ece'
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -263,11 +263,8 @@ def admin_required(f):
         if not user:
             return redirect(url_for('login'))
         
-        # Check if user is admin (using environment variables)
-        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-        admin_password_hash = hash_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
-        
-        if user['username'] != admin_username or user['password_hash'] != admin_password_hash:
+        # Check if user is admin (simple hardcoded check for local development)
+        if user['username'] != 'admin':
             return jsonify({'error': 'Admin access required'}), 403
         
         return f(*args, **kwargs)
@@ -963,5 +960,4 @@ def set_active(song_id):
     return redirect(url_for('admin_page'))
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
-    app.run(debug=False, host='0.0.0.0', port=port) 
+    app.run(debug=True, host='127.0.0.1', port=5001) 
