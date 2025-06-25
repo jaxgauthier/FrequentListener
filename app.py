@@ -256,15 +256,21 @@ def login_required(f):
     return decorated_function
 
 def admin_required(f):
-    """Decorator to require admin access"""
+    """Decorator to require admin access using admin_users table"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user = get_user_from_session()
         if not user:
             return redirect(url_for('login'))
         
-        # Check if user is admin (simple hardcoded check for local development)
-        if user['username'] != 'admin':
+        # Check if user exists in admin_users table
+        conn = get_db_connection()
+        admin_user = conn.execute('''
+            SELECT * FROM admin_users WHERE username = ?
+        ''', (user['username'],)).fetchone()
+        conn.close()
+        
+        if not admin_user:
             return jsonify({'error': 'Admin access required'}), 403
         
         return f(*args, **kwargs)
@@ -547,6 +553,70 @@ def login():
         return response
     
     return render_template('login.html')
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page"""
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'Username and password required'})
+        
+        # Check admin credentials
+        conn = get_db_connection()
+        admin_user = conn.execute('''
+            SELECT * FROM admin_users WHERE username = ?
+        ''', (username,)).fetchone()
+        conn.close()
+        
+        if admin_user and admin_user['password_hash'] == hash_password(password):
+            # Create session for admin user (using regular users table for session management)
+            # First check if admin exists as regular user, if not create them
+            conn = get_db_connection()
+            regular_user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+            
+            if not regular_user:
+                # Create regular user account for admin (for session management)
+                cursor = conn.cursor()
+                admin_user_dict = dict(admin_user)
+                email = admin_user_dict.get('email', f'{username}@admin.local')  # Provide default email
+                cursor.execute('''
+                    INSERT INTO users (username, password_hash, email)
+                    VALUES (?, ?, ?)
+                ''', (username, admin_user['password_hash'], email))
+                user_id = cursor.lastrowid
+                conn.commit()
+            else:
+                user_id = regular_user['id']
+            
+            conn.close()
+            
+            session_token = create_user_session(user_id)
+            response = jsonify({'success': True, 'redirect': url_for('admin_page')})
+            response.set_cookie('session_token', session_token, max_age=86400, httponly=True)
+            return response
+        else:
+            return jsonify({'success': False, 'error': 'Invalid admin credentials'})
+    
+    return render_template('admin_login.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Admin logout"""
+    session_token = request.cookies.get('session_token')
+    if session_token:
+        # Remove session from database
+        conn = get_db_connection()
+        conn.execute('DELETE FROM user_sessions WHERE session_token = ?', (session_token,))
+        conn.commit()
+        conn.close()
+    
+    response = redirect(url_for('admin_login'))
+    response.delete_cookie('session_token')
+    return response
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():

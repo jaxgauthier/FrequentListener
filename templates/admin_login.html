@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Audio Frequency Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>🔐 Admin Login</h1>
+                <p>Access the admin panel to manage songs and game settings</p>
+            </div>
+            
+            <form id="adminLoginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="username">Admin Username</label>
+                    <input type="text" id="username" name="username" required placeholder="Enter admin username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required placeholder="Enter password">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Login to Admin Panel</button>
+            </form>
+            
+            <div class="auth-footer">
+                <a href="{{ url_for('user_page') }}" class="back-link">← Back to Game</a>
+            </div>
+            
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/admin_auth.js') }}"></script>
+</body>
+</html> 
