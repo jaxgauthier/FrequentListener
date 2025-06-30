@@ -1,10 +1,16 @@
+import sys
+import os
+# Add current directory to path for local imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 from manim_to_audio import generate_audio_from_frequencies, save_audio, plot_and_play_audio
 import numpy as np
 import soundfile as sf
-import os
-from helpers.read_wav_file import read_wav_file
+from app.utils.helpers.read_wav_file import read_wav_file
 import matplotlib.pyplot as plt
-from manim import *
+#from manim import *
 from pydub import AudioSegment
 import tempfile
 

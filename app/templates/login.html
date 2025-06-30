@@ -14,10 +14,10 @@
                 <p>Welcome back! Sign in to track your progress</p>
             </div>
             
-            <form id="loginForm" class="auth-form">
+            <form id="loginForm" class="auth-form" method="POST">
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required>
+                    <label for="identifier">Email or Username</label>
+                    <input type="text" id="identifier" name="identifier" required>
                 </div>
                 
                 <div class="form-group">
@@ -29,11 +29,15 @@
             </form>
             
             <div class="auth-footer">
-                <p>Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a></p>
-                <p><a href="{{ url_for('user_page') }}">Continue as guest</a></p>
+                <p>Don't have an account? <a href="{{ url_for('main.signup') }}">Sign up</a></p>
+                <p><a href="{{ url_for('main.index') }}">Continue as guest</a></p>
             </div>
             
-            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="errorMessage" class="error-message" style="display: none;">
+                {% if error %}
+                {{ error }}
+                {% endif %}
+            </div>
         </div>
     </div>
 

@@ -415,8 +415,19 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Form submitted');
         const formData = new FormData(guessForm);
         const songGuess = formData.get('song_guess');
+        const difficultyLevel = formData.get('difficulty_level');
         console.log('Song guess:', songGuess);
-        const response = await fetch('/submit_guess', { method: 'POST', body: formData });
+        
+        const response = await fetch('/submit_guess', { 
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                song_guess: songGuess,
+                difficulty_level: parseInt(difficultyLevel) || 0
+            })
+        });
         const data = await response.json();
         console.log('Response data:', data);
         

@@ -16,17 +16,17 @@
                     <span class="logo-icon">👤</span>
                 </button>
                 <div class="dropdown-menu" id="dropdownMenu">
-                    {% if user %}
+                    {% if current_user.is_authenticated %}
                         <div class="dropdown-header">
                             <span class="user-avatar">👤</span>
-                            <span class="username">{{ user.username }}</span>
+                            <span class="username">{{ current_user.username }}</span>
                         </div>
                         <div class="dropdown-divider"></div>
-                        <a href="{{ url_for('profile') }}" class="dropdown-item">Profile</a>
-                        <a href="{{ url_for('logout') }}" class="dropdown-item">Logout</a>
+                        <a href="{{ url_for('main.profile') }}" class="dropdown-item">Profile</a>
+                        <a href="{{ url_for('main.logout') }}" class="dropdown-item">Logout</a>
                     {% else %}
-                        <a href="{{ url_for('login') }}" class="dropdown-item">Login</a>
-                        <a href="{{ url_for('signup') }}" class="dropdown-item">Sign Up</a>
+                        <a href="{{ url_for('main.login') }}" class="dropdown-item">Login</a>
+                        <a href="{{ url_for('main.signup') }}" class="dropdown-item">Sign Up</a>
                     {% endif %}
                 </div>
             </div>
@@ -47,8 +47,8 @@
                 <li>Use the guess form below to submit your answer</li>
                 <li>You can guess at any time during the game</li>
                 <li>Score starts at 7 and decreases by 1 for each difficulty level revealed</li>
-                {% if not user %}
-                <li><a href="{{ url_for('login') }}" style="color: #667eea;">Sign in</a> to track your progress!</li>
+                {% if not current_user.is_authenticated %}
+                <li><a href="{{ url_for('main.login') }}" style="color: #667eea;">Sign in</a> to track your progress!</li>
                 {% endif %}
             </ul>
         </section>
@@ -84,7 +84,7 @@
                 <div class="audio-player" id="audio-{{ freq }}" {% if loop.index > 1 %}style="display: none;"{% endif %}>
                     <h4>{{ freq }} Frequencies ({{ difficulty_labels.get(freq, 'Unknown') }})</h4>
                     <audio controls>
-                        <source src="{{ url_for('play_frequency_audio', song_name=current_song.base_filename, frequency=freq) }}" type="audio/wav">
+                        <source src="{{ url_for('main.play_frequency_audio', song_name=current_song.base_filename, frequency=freq) }}" type="audio/wav">
                         Your browser does not support the audio element.
                     </audio>
                 </div>
@@ -126,19 +126,19 @@
             <div id="correctAnswer" class="correct-answer"></div>
         </section>
 
-        <!-- User Stats Section (only show if logged in) -->
-        {% if user %}
+        <!-- Stats Section (show for everyone) -->
         <section class="user-stats-section" style="display: none;">
             <h3>Current Song Stats</h3>
             
-            <!-- Check if user has already played this song -->
-            {% if stats and stats.has_played_current %}
+            <!-- Check if user has already played this song (only for logged in users) -->
+            {% if current_user.is_authenticated and stats and stats.has_played_current %}
             <div class="already-played-message">
                 <p>You have already played this song. Wait for the next song to be active.</p>
             </div>
             {% endif %}
             
-            <!-- Average Score for Current Song -->
+            <!-- Average Score for Current Song (global stats) -->
+            {% if stats and stats.song_stats %}
             <div class="average-score-card">
                 <div class="average-score-info">
                     <span class="average-score-label">Average Score:</span>
@@ -147,9 +147,16 @@
                 <div class="average-score-explanation">
                     <small>Average score for {{ current_song.title }} by {{ current_song.artist }}</small>
                 </div>
+                {% if not current_user.is_authenticated %}
+                <div class="guest-message">
+                    <small><a href="{{ url_for('main.login') }}" style="color: #667eea;">Sign in</a> to track your personal stats!</small>
+                </div>
+                {% endif %}
             </div>
+            {% endif %}
             
-            <!-- Points Distribution Bar Graph -->
+            <!-- Points Distribution Bar Graph (only for logged in users) -->
+            {% if current_user.is_authenticated and stats and stats.individual_stats %}
             <div class="points-distribution">
                 <h4>Your All-Time Score Distribution</h4>
                 <div class="bar-graph">
@@ -167,8 +174,8 @@
                     <small>Your all-time score distribution across all songs</small>
                 </div>
             </div>
+            {% endif %}
         </section>
-        {% endif %}
     </div>
 
     <script src="{{ url_for('static', filename='js/user.js') }}"></script>

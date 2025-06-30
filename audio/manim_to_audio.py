@@ -1,6 +1,6 @@
 import numpy as np
 import soundfile as sf
-from helpers.audio_player import AudioPlayer
+from app.utils.helpers.audio_player import AudioPlayer
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 

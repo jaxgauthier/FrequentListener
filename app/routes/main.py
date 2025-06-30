@@ -2,11 +2,12 @@
 Main routes for the game interface
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, current_app
-from flask_login import current_user, login_required
-from app.models import Song, UserStats, SongStats
-from app.services import StatsService
+from flask import Blueprint, render_template, request, jsonify, send_file, current_app, redirect, url_for
+from flask_login import current_user, login_required, logout_user, login_user
+from app.models import Song, UserStats, SongStats, User
+from app.services import StatsService, AudioService
 import os
+from werkzeug.security import generate_password_hash, check_password_hash
 
 bp = Blueprint('main', __name__)
 
@@ -16,37 +17,63 @@ def index():
     # Get current active song
     current_song = Song.query.filter_by(is_active=True).first()
     
-    # Get user stats if logged in
+    # Get stats for everyone
     stats = None
-    if current_user.is_authenticated:
-        stats = StatsService.get_user_stats(current_user.id, current_song.id if current_song else None)
+    if current_song:
+        # Get global song stats for all users
+        song_stats = SongStats.query.filter_by(song_id=current_song.id).first()
+        if song_stats:
+            global_stats = {
+                'average_score': song_stats.average_score,
+                'total_plays': song_stats.total_plays,
+                'total_correct_guesses': song_stats.total_correct_guesses
+            }
+        else:
+            global_stats = {'average_score': 0.0, 'total_plays': 0, 'total_correct_guesses': 0}
+        
+        # Get user-specific stats if logged in
+        if current_user.is_authenticated:
+            user_stats = StatsService.get_user_stats(current_user.id, current_song.id)
+            stats = user_stats
+            stats['song_stats'] = global_stats
+        else:
+            # For guests, just show global stats
+            stats = {
+                'has_played_current': False,
+                'song_stats': global_stats,
+                'individual_stats': {'points_distribution': {}, 'max_count': 1}
+            }
     
-    return render_template('user.html', current_song=current_song, user=current_user, stats=stats)
+    return render_template('user.html', current_song=current_song, stats=stats)
 
 @bp.route('/play_frequency/<song_name>/<frequency>')
 def play_frequency_audio(song_name, frequency):
     """Serve frequency-specific audio files"""
-    song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], song_name)
-    
-    if not os.path.exists(song_folder):
-        # Fallback to old mapping system
-        song_folders = {
-            'MrBrightside': 'MrBrighstide',
-            'GhostTown': 'GhostTown',
-            'Milan': 'Milan',
-            'TeenageDirtbag': 'TeenageDirtbag'
-        }
+    try:
+        song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], song_name)
         
-        folder_name = song_folders.get(song_name)
-        if not folder_name:
-            return 'Song not found', 404
-        song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], folder_name)
-    
-    filepath = os.path.join(song_folder, f'reconstructed_audio_{frequency}.wav')
-    
-    if os.path.exists(filepath):
-        return send_file(filepath)
-    return 'Frequency version not found', 404
+        if not os.path.exists(song_folder):
+            # Fallback to old mapping system
+            song_folders = {
+                'MrBrightside': 'MrBrighstide',
+                'GhostTown': 'GhostTown',
+                'Milan': 'Milan',
+                'TeenageDirtbag': 'TeenageDirtbag'
+            }
+            
+            folder_name = song_folders.get(song_name)
+            if not folder_name:
+                return 'Song not found', 404
+            song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], folder_name)
+        
+        filepath = os.path.join(song_folder, f'reconstructed_audio_{frequency}.wav')
+        
+        if os.path.exists(filepath):
+            return send_file(filepath)
+        return 'Frequency version not found', 404
+    except Exception as e:
+        current_app.logger.error(f"Error in play_frequency_audio: {e}")
+        return f'Error: {str(e)}', 500
 
 @bp.route('/submit_guess', methods=['POST'])
 def submit_guess():
@@ -74,7 +101,10 @@ def submit_guess():
     # Calculate final score
     final_score = max(0, 7 - difficulty_level) if is_correct else 0
     
-    # Update stats if user is logged in
+    # Always update global song stats
+    StatsService.update_song_stats(current_song.id, final_score, is_correct)
+    
+    # Update user stats if user is logged in
     if current_user.is_authenticated:
         StatsService.update_user_stats(
             current_user.id, 
@@ -95,12 +125,314 @@ def submit_guess():
 @bp.route('/current_stats')
 def current_stats():
     """Get current song statistics"""
-    if not current_user.is_authenticated:
-        return jsonify({'error': 'User not authenticated'}), 400
-    
     current_song = Song.query.filter_by(is_active=True).first()
     if not current_song:
         return jsonify({'error': 'No active song'}), 400
     
+    # Get global song stats for all users
+    song_stats = SongStats.query.filter_by(song_id=current_song.id).first()
+    if song_stats:
+        global_stats = {
+            'average_score': song_stats.average_score,
+            'total_plays': song_stats.total_plays,
+            'total_correct_guesses': song_stats.total_correct_guesses
+        }
+    else:
+        global_stats = {'average_score': 0.0, 'total_plays': 0, 'total_correct_guesses': 0}
+    
+    # If user is not authenticated, return basic song info and global stats only
+    if not current_user.is_authenticated:
+        return jsonify({
+            'success': True,
+            'song': {
+                'title': current_song.title,
+                'artist': current_song.artist
+            },
+            'stats': {
+                'has_played_current': False,
+                'song_stats': global_stats,
+                'individual_stats': {'points_distribution': {}, 'max_count': 1}
+            }
+        })
+    
+    # For authenticated users, get full stats
     stats = StatsService.get_user_stats(current_user.id, current_song.id)
-    return jsonify(stats) 
+    stats['song_stats'] = global_stats
+    
+    return jsonify({
+        'success': True,
+        'song': {
+            'title': current_song.title,
+            'artist': current_song.artist
+        },
+        'stats': stats
+    })
+
+@bp.route('/profile')
+@login_required
+def profile():
+    """User profile page with stats"""
+    # Get comprehensive user stats for profile page
+    stats = StatsService.get_profile_stats(current_user.id)
+    return render_template('profile.html', user=current_user, stats=stats)
+
+@bp.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('main.index'))
+
+@bp.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page"""
+    if request.method == 'POST':
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            username = data.get('username')
+            password = data.get('password')
+        else:
+            username = request.form.get('username')
+            password = request.form.get('password')
+        
+        # Check if admin credentials are correct
+        if username == 'admin' and password == 'admin123':  # Change these credentials
+            # In a real app, you'd use proper authentication
+            if request.is_json:
+                return jsonify({'success': True, 'redirect': url_for('main.admin_panel')})
+            else:
+                return redirect(url_for('main.admin_panel'))
+        else:
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Invalid credentials'})
+            else:
+                return render_template('admin_login.html', error='Invalid credentials')
+    
+    return render_template('admin_login.html')
+
+@bp.route('/admin')
+def admin_panel():
+    """Admin panel page"""
+    # Get all songs
+    songs = Song.query.all()
+    
+    # Get basic stats
+    stats = {
+        'total_songs': Song.query.count(),
+        'total_plays': 0,  # You can implement this later
+        'this_week_plays': 0  # You can implement this later
+    }
+    
+    return render_template('admin.html', songs=songs, stats=stats)
+
+@bp.route('/admin/set_active/<int:song_id>', methods=['POST'])
+def set_active(song_id):
+    """Set a song as active"""
+    # Set all songs as inactive first
+    Song.query.update({Song.is_active: False})
+    
+    # Set the selected song as active
+    song = Song.query.get_or_404(song_id)
+    song.is_active = True
+    
+    from app import db
+    db.session.commit()
+    
+    return redirect(url_for('main.admin_panel'))
+
+@bp.route('/login', methods=['GET', 'POST'])
+def login():
+    """User login page"""
+    if request.method == 'POST':
+        # Handle both form data and JSON
+        if request.is_json:
+            data = request.get_json()
+            identifier = data.get('identifier')
+            password = data.get('password')
+        else:
+            identifier = request.form.get('identifier')
+            password = request.form.get('password')
+        
+        user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            if request.is_json:
+                return jsonify({'success': True, 'message': 'Login successful'})
+            else:
+                return redirect(url_for('main.index'))
+        else:
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Invalid username/email or password'})
+            else:
+                return render_template('login.html', error='Invalid username/email or password')
+    return render_template('login.html')
+
+@bp.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """User signup page"""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        if not username or not email or not password:
+            return render_template('signup.html', error='All fields are required')
+        if User.query.filter_by(username=username).first():
+            return render_template('signup.html', error='Username already exists')
+        if User.query.filter_by(email=email).first():
+            return render_template('signup.html', error='Email already exists')
+        user = User(username=username, email=email, password_hash=generate_password_hash(password))
+        from app import db
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+        return redirect(url_for('main.index'))
+    return render_template('signup.html')
+
+@bp.route('/spotify_search')
+def spotify_search():
+    """Search Spotify for tracks"""
+    query = request.args.get('q', '').strip()
+    
+    if not query:
+        return jsonify({'tracks': []})
+    
+    try:
+        # Import spotipy here to avoid circular imports
+        import spotipy
+        from spotipy.oauth2 import SpotifyClientCredentials
+        
+        # Initialize Spotify client
+        client_credentials_manager = SpotifyClientCredentials(
+            client_id=os.environ.get('SPOTIFY_CLIENT_ID'),
+            client_secret=os.environ.get('SPOTIFY_CLIENT_SECRET')
+        )
+        sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+        
+        # Search for tracks
+        results = sp.search(q=query, type='track', limit=5)
+        
+        tracks = []
+        if results and 'tracks' in results and 'items' in results['tracks']:
+            for track in results['tracks']['items']:
+                if track:
+                    tracks.append({
+                        'name': track.get('name', 'Unknown Title'),
+                        'artist': track.get('artists', [{}])[0].get('name', 'Unknown Artist') if track.get('artists') else 'Unknown Artist',
+                        'album': track.get('album', {}).get('name', 'Unknown Album') if track.get('album') else 'Unknown Album',
+                        'spotify_id': track.get('id', ''),
+                        'duration_ms': track.get('duration_ms', 0)
+                    })
+        
+        return jsonify({'tracks': tracks})
+        
+    except Exception as e:
+        print(f"Spotify search error: {e}")
+        return jsonify({'tracks': [], 'error': str(e)})
+
+@bp.route('/admin/process_spotify_song', methods=['POST'])
+def process_spotify_song():
+    """Process a Spotify song and add it to the game"""
+    try:
+        data = request.get_json()
+        
+        title = data.get('title')
+        artist = data.get('artist')
+        album = data.get('album', 'Unknown Album')
+        week = data.get('week', 1)
+        start_time = data.get('start_time', 0)
+        end_time = data.get('end_time', 10)
+        spotify_id = data.get('spotify_id')
+        
+        if not title or not artist:
+            return jsonify({
+                'success': False,
+                'error': 'Title and artist are required'
+            })
+        
+        # Create a safe filename for the song
+        safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_artist = "".join(c for c in artist if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        song_folder_name = f"{safe_artist}_{safe_title}".replace(' ', '')
+        
+        # Check if song already exists
+        existing_song = Song.query.filter_by(title=title, artist=artist).first()
+        if existing_song:
+            return jsonify({
+                'success': False,
+                'error': f"Song '{title}' by {artist} already exists in the database"
+            })
+        
+        # Create output directory
+        output_dir = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], song_folder_name)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Download audio from YouTube
+        temp_audio_path = os.path.join(output_dir, 'temp_audio.wav')
+        download_success = AudioService.download_from_youtube(
+            title, artist, temp_audio_path, start_time, end_time
+        )
+        
+        if not download_success:
+            return jsonify({
+                'success': False,
+                'error': f"Failed to download audio for '{title}' by {artist}"
+            })
+        
+        # Process through DFT pipeline
+        process_success = AudioService.process_through_dft(
+            temp_audio_path, song_folder_name, f"{safe_title}_{safe_artist}"
+        )
+        
+        # Clean up temp file
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+        
+        if not process_success:
+            return jsonify({
+                'success': False,
+                'error': f"Failed to process audio through DFT pipeline for '{title}' by {artist}"
+            })
+        
+        # Add song to database
+        new_song = Song(
+            title=title,
+            artist=artist,
+            album=album,
+            week=week,
+            base_filename=song_folder_name,
+            spotify_id=spotify_id,
+            has_frequency_versions=True,
+            is_active=False  # Don't make it active by default
+        )
+        
+        from app import db
+        db.session.add(new_song)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f"Successfully processed '{title}' by {artist}. Song added to database with ID: {new_song.id}"
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error processing Spotify song: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"Processing failed: {str(e)}"
+        })
+
+@bp.route('/admin/delete/<int:song_id>', methods=['DELETE'])
+def delete_song(song_id):
+    """Delete a song from the database"""
+    try:
+        song = Song.query.get_or_404(song_id)
+        from app import db
+        db.session.delete(song)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }) 

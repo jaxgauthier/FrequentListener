@@ -127,7 +127,7 @@ class StatsService:
                     total_plays=1,
                     total_correct_guesses=1 if is_correct else 0,
                     average_score=float(final_score) if is_correct else 0.0,
-                    points_distribution=json.dumps({final_score: 1} if is_correct else {})
+                    points_distribution=json.dumps({int(final_score): 1} if is_correct else {})
                 )
                 db.session.add(song_stats)
             else:
@@ -138,8 +138,12 @@ class StatsService:
                 
                 # Update points distribution
                 points_dist = song_stats.points_distribution_dict
+                # Convert string keys to integers
+                points_dist = {int(k): v for k, v in points_dist.items()}
+                
                 if is_correct:
-                    points_dist[final_score] = points_dist.get(final_score, 0) + 1
+                    final_score_int = int(final_score)
+                    points_dist[final_score_int] = points_dist.get(final_score_int, 0) + 1
                 
                 song_stats.points_distribution_dict = points_dist
                 
@@ -153,6 +157,8 @@ class StatsService:
         except Exception as e:
             db.session.rollback()
             print(f"Error updating song stats: {e}")
+            import traceback
+            traceback.print_exc()
     
     @staticmethod
     def reset_has_played_for_all_users():
@@ -162,4 +168,53 @@ class StatsService:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            print(f"Error resetting has_played flags: {e}") 
+            print(f"Error resetting has_played flags: {e}")
+    
+    @staticmethod
+    def get_profile_stats(user_id):
+        """Get comprehensive user stats for profile page"""
+        try:
+            # Get all user stats
+            all_user_stats = UserStats.query.filter_by(user_id=user_id).all()
+            
+            # Calculate basic stats
+            total_guesses = sum(stat.guess_count for stat in all_user_stats)
+            correct_guesses = sum(1 for stat in all_user_stats if stat.correct_guess)
+            songs_attempted = len(all_user_stats)
+            accuracy = (correct_guesses / total_guesses * 100) if total_guesses > 0 else 0
+            
+            # Get recent activity (last 10 guesses)
+            recent_stats = UserStats.query.filter_by(user_id=user_id)\
+                .order_by(UserStats.guessed_at.desc())\
+                .limit(10)\
+                .all()
+            
+            recent_activity = []
+            for stat in recent_stats:
+                song = Song.query.get(stat.song_id)
+                if song:
+                    recent_activity.append({
+                        'title': song.title,
+                        'artist': song.artist,
+                        'correct_guess': stat.correct_guess,
+                        'difficulty_level': stat.difficulty_level,
+                        'guessed_at': stat.guessed_at.strftime('%Y-%m-%d %H:%M:%S') if stat.guessed_at else 'Unknown'
+                    })
+            
+            return {
+                'total_guesses': total_guesses,
+                'correct_guesses': correct_guesses,
+                'accuracy': accuracy,
+                'songs_attempted': songs_attempted,
+                'recent_activity': recent_activity
+            }
+            
+        except Exception as e:
+            print(f"Error getting profile stats: {e}")
+            return {
+                'total_guesses': 0,
+                'correct_guesses': 0,
+                'accuracy': 0.0,
+                'songs_attempted': 0,
+                'recent_activity': []
+            } 

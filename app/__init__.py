@@ -29,14 +29,18 @@ def create_app(config_name=None):
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
+    
+    # Configure Flask-Login
+    login_manager.login_view = 'main.login'
+    login_manager.login_message = 'Please log in to access this page.'
+    login_manager.login_message_category = 'info'
     
     # Register blueprints
-    from app.routes import main, auth, admin, api
+    from app.routes import main
     app.register_blueprint(main.bp)
-    app.register_blueprint(auth.bp, url_prefix='/auth')
-    app.register_blueprint(admin.bp, url_prefix='/admin')
-    app.register_blueprint(api.bp, url_prefix='/api')
+    
+    # Import models to register user loader
+    from app.models import user
     
     # Create database tables
     with app.app_context():

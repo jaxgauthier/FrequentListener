@@ -18,7 +18,7 @@ class Config:
     # File Upload Configuration
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
     UPLOAD_FOLDER = 'audio/uploads'
-    AUDIO_OUTPUT_FOLDER = 'audio/OutputWAVS'
+    AUDIO_OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'audio', 'OutputWAVS')
     
     # Spotify API Configuration
     SPOTIFY_CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID')

@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const formData = new FormData(loginForm);
             const data = {
-                username: formData.get('username'),
+                identifier: formData.get('identifier'),
                 password: formData.get('password')
             };
 
@@ -38,14 +38,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify(data)
             })
-            .then(response => response.json())
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Login failed');
+                }
+            })
             .then(data => {
-                if (data.success) {
+                if (data && data.success) {
                     showSuccess(data.message);
                     setTimeout(() => {
                         window.location.href = '/';
                     }, 1000);
-                } else {
+                } else if (data) {
                     showError(data.error || 'Login failed');
                 }
             })

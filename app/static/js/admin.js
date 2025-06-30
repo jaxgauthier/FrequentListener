@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function playSong(filename) {
     // Play audio file
-    const audio = new Audio('/play/' + filename);
+    const audio = new Audio('/play_frequency/' + filename);
     audio.play();
 }
 

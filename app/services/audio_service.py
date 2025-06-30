@@ -2,7 +2,12 @@
 Audio processing service for DFT operations
 """
 
+import sys
 import os
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import numpy as np
 import soundfile as sf
 import tempfile
@@ -104,11 +109,20 @@ class AudioService:
     def process_through_dft(input_file, output_folder, base_filename):
         """Process audio through DFT pipeline"""
         try:
-            # Import DFT processing functions from new location
+            # Import using absolute paths for reliability
             import sys
-            sys.path.append('audio')
-            from layersFFT import read_audio_file
-            from manim_to_audio import save_audio
+            import os
+            
+            # Get the project root directory
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
+            # Add project root to path if not already there
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+            
+            # Import the required functions
+            from audio.layersFFT import read_audio_file
+            from audio.manim_to_audio import save_audio
             
             # Read audio file
             data, sample_rate, num_channels = read_audio_file(input_file)

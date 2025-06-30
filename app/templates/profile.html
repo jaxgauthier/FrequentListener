@@ -12,11 +12,11 @@
         <!-- Navigation -->
         <nav class="nav-bar">
             <div class="nav-content">
-                <a href="{{ url_for('user_page') }}" class="nav-logo">🎵 Frequent Listener</a>
+                <a href="{{ url_for('main.index') }}" class="nav-logo">🎵 Frequent Listener</a>
                 <div class="nav-links">
-                    <a href="{{ url_for('user_page') }}">Play Game</a>
-                    <a href="{{ url_for('profile') }}" class="active">Profile</a>
-                    <a href="{{ url_for('logout') }}">Logout</a>
+                    <a href="{{ url_for('main.index') }}">Play Game</a>
+                    <a href="{{ url_for('main.profile') }}" class="active">Profile</a>
+                    <a href="{{ url_for('main.logout') }}">Logout</a>
                 </div>
             </div>
         </nav>
@@ -26,9 +26,9 @@
             <div class="user-info">
                 <div class="avatar">👤</div>
                 <div class="user-details">
-                    <h1>{{ user.username }}</h1>
-                    <p>{{ user.email }}</p>
-                    <small>Member since {{ user.created_at.split(' ')[0] if user.created_at else 'Unknown' }}</small>
+                    <h1>{{ current_user.username }}</h1>
+                    <p>{{ current_user.email }}</p>
+                    <small>Member since {{ current_user.created_at.strftime('%Y-%m-%d') if current_user.created_at else 'Unknown' }}</small>
                 </div>
             </div>
         </header>
@@ -74,7 +74,7 @@
                             {{ activity.difficulty_level }} frequencies
                         </span>
                         <span class="activity-time">
-                            {{ activity.guessed_at.split(' ')[0] if activity.guessed_at else 'Unknown' }}
+                            {{ activity.guessed_at if activity.guessed_at else 'Unknown' }}
                         </span>
                     </div>
                 </div>
@@ -83,7 +83,7 @@
             {% else %}
             <div class="no-activity">
                 <p>No activity yet. Start playing to see your stats!</p>
-                <a href="{{ url_for('user_page') }}" class="btn btn-primary">Play Now</a>
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary">Play Now</a>
             </div>
             {% endif %}
         </section>
