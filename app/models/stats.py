@@ -1,3 +1,4 @@
+# pyright: reportGeneralTypeIssues=false
 """
 Statistics models for tracking user performance and song analytics
 """

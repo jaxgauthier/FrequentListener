@@ -30,7 +30,7 @@ class Config:
     # Audio Processing Configuration
     AUDIO_SAMPLE_RATE = 44100
     AUDIO_DURATION = 10  # seconds
-    FREQUENCY_LEVELS = [100, 500, 1000, 2000, 3500, 5000, 7500]
+    FREQUENCY_LEVELS = [500, 1000, 1500, 2000, 2500, 3500, 5000, 7500]
 
 class DevelopmentConfig(Config):
     """Development configuration"""

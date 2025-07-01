@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Song History - Audio Frequency Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
+    <style>
+        .history-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .history-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .history-header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .history-header p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .date-group {
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .date-header {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #007bff;
+        }
+        
+        .song-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .song-item {
+            background: white;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .song-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .song-artist {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .song-album {
+            color: #999;
+            font-size: 12px;
+            font-style: italic;
+        }
+        
+        .no-history {
+            text-align: center;
+            color: #666;
+            font-size: 18px;
+            margin-top: 50px;
+        }
+        
+        .back-button {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .back-button:hover {
+            background: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .stats-summary {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .stats-summary h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .stats-summary p {
+            margin: 5px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="history-container">
+        <a href="{{ url_for('main.index') }}" class="back-button">← Back to Game</a>
+        
+        <div class="history-header">
+            <h1>Song History</h1>
+            <p>All songs that have been played in the Audio Frequency Game</p>
+        </div>
+        
+        {% if history_by_date %}
+            <div class="stats-summary">
+                <h3>Summary</h3>
+                <p><strong>Total Days:</strong> {{ history_by_date|length }}</p>
+                <p><strong>Total Songs:</strong> 
+                    {% set total_songs = namespace(value=0) %}
+                    {% for date, songs in history_by_date.items() %}
+                        {% set total_songs.value = total_songs.value + songs|length %}
+                    {% endfor %}
+                    {{ total_songs.value }}
+                </p>
+            </div>
+            
+            {% for date, songs in history_by_date.items() %}
+                <div class="date-group">
+                    <div class="date-header">
+                        {{ date }} ({{ songs|length }} song{% if songs|length != 1 %}s{% endif %})
+                    </div>
+                    <ul class="song-list">
+                        {% for song in songs %}
+                            <li class="song-item">
+                                <div class="song-title">{{ song.title }}</div>
+                                <div class="song-artist">{{ song.artist }}</div>
+                                {% if song.album %}
+                                    <div class="song-album">{{ song.album }}</div>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-history">
+                <h2>No Song History Yet</h2>
+                <p>No songs have been played yet. Check back after some songs have been activated!</p>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html> 

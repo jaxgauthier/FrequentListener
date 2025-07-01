@@ -4,8 +4,9 @@ Main routes for the game interface
 
 from flask import Blueprint, render_template, request, jsonify, send_file, current_app, redirect, url_for
 from flask_login import current_user, login_required, logout_user, login_user
-from app.models import Song, UserStats, SongStats, User
+from app.models import Song, UserStats, SongStats, User, SongHistory
 from app.services import StatsService, AudioService
+from app.services.queue_service import QueueService
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -99,7 +100,7 @@ def submit_guess():
     )
     
     # Calculate final score
-    final_score = max(0, 7 - difficulty_level) if is_correct else 0
+    final_score = max(0, 8 - difficulty_level) if is_correct else 0
     
     # Always update global song stats
     StatsService.update_song_stats(current_song.id, final_score, is_correct)
@@ -425,11 +426,203 @@ def delete_song(song_id):
     """Delete a song from the database"""
     try:
         song = Song.query.get_or_404(song_id)
+        
+        # Delete queue entries first (foreign key constraint)
+        from app.models.song import SongQueue
+        SongQueue.query.filter_by(song_id=song_id).delete()
+        
+        # Delete the song
         from app import db
         db.session.delete(song)
         db.session.commit()
         
         return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@bp.route('/admin/queue_week', methods=['POST'])
+def queue_week():
+    """Queue songs for the current week"""
+    try:
+        data = request.get_json()
+        song_ids = data.get('song_ids', [])
+        
+        if len(song_ids) > 7:
+            return jsonify({
+                'success': False,
+                'error': 'Maximum 7 songs allowed per week'
+            })
+        
+        success = QueueService.queue_songs_for_week(song_ids)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Successfully queued {len(song_ids)} songs for the week'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to queue songs'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@bp.route('/admin/activate_today')
+def activate_today():
+    """Activate today's song"""
+    try:
+        song = QueueService.activate_todays_song()
+        
+        if song:
+            return jsonify({
+                'success': True,
+                'message': f'Activated {song.title} by {song.artist} for today'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No song queued for today'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@bp.route('/admin/queue_status')
+def queue_status():
+    """Get current queue status"""
+    try:
+        current_queue = QueueService.get_current_week_queue()
+        next_queue = QueueService.get_next_week_queue()
+        
+        current_songs = []
+        for entry in current_queue:
+            current_songs.append({
+                'id': entry.song.id,
+                'title': entry.song.title,
+                'artist': entry.song.artist,
+                'date': entry.scheduled_date.strftime('%Y-%m-%d'),
+                'status': entry.status,
+                'is_active': entry.song.is_active
+            })
+        
+        next_songs = []
+        for entry in next_queue:
+            next_songs.append({
+                'id': entry.song.id,
+                'title': entry.song.title,
+                'artist': entry.song.artist,
+                'date': entry.scheduled_date.strftime('%Y-%m-%d'),
+                'status': entry.status
+            })
+        
+        return jsonify({
+            'success': True,
+            'current_week': current_songs,
+            'next_week': next_songs
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@bp.route('/admin/clear_queue', methods=['POST'])
+def clear_queue():
+    """Clear the current week's queue"""
+    try:
+        from datetime import date, timedelta
+        
+        # Get the start of the current week (Monday)
+        today = date.today()
+        days_since_monday = today.weekday()
+        week_start = today - timedelta(days=days_since_monday)
+        
+        # Clear queue entries for this week
+        from app.models.song import SongQueue
+        deleted_count = SongQueue.query.filter(
+            SongQueue.scheduled_date >= week_start,
+            SongQueue.scheduled_date < week_start + timedelta(days=7)
+        ).delete()
+        
+        from app import db
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cleared {deleted_count} songs from the current week queue'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@bp.route('/song_history')
+def song_history():
+    """Display song history page"""
+    # Get all song history entries, ordered by most recent first
+    history_entries = SongHistory.get_all_history()
+    
+    # Group by date for better display
+    history_by_date = {}
+    for entry in history_entries:
+        date_str = entry.played_date.strftime('%Y-%m-%d')
+        if date_str not in history_by_date:
+            history_by_date[date_str] = []
+        history_by_date[date_str].append({
+            'title': entry.title,
+            'artist': entry.artist,
+            'album': entry.album
+        })
+    
+    return render_template('song_history.html', history_by_date=history_by_date)
+
+@bp.route('/api/song_history')
+def api_song_history():
+    """API endpoint to get song history data"""
+    try:
+        # Get optional date range parameters
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        
+        if start_date_str and end_date_str:
+            from datetime import datetime
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            history_entries = SongHistory.get_history_by_date_range(start_date, end_date)
+        else:
+            history_entries = SongHistory.get_all_history()
+        
+        # Format the data
+        history_data = []
+        for entry in history_entries:
+            history_data.append({
+                'id': entry.id,
+                'title': entry.title,
+                'artist': entry.artist,
+                'album': entry.album,
+                'played_date': entry.played_date.strftime('%Y-%m-%d'),
+                'created_at': entry.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        
+        return jsonify({
+            'success': True,
+            'history': history_data
+        })
         
     except Exception as e:
         return jsonify({

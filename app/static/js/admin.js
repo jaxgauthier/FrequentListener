@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Simulate progress updates
         let progress = 0;
-        const frequencies = [100, 500, 1000, 2000, 3500, 5000, 7500];
+        const frequencies = [500, 1000, 1500, 2000, 2500, 3500, 5000, 7500];
         let currentFreqIndex = 0;
         
         const progressInterval = setInterval(() => {
@@ -332,7 +332,7 @@ function viewFrequencies(songName) {
         frequencies = freqText.split(', ');
     } else {
         // Fallback to checking what files exist
-        frequencies = ['100', '500', '1000', '2000', '3500', '5000', '7500'];
+        frequencies = ['500', '1000', '1500', '2000', '2500', '3500', '5000', '7500'];
     }
     
     let frequencyHtml = '<html><head><title>Frequency Versions</title><style>';
@@ -376,6 +376,168 @@ function deleteSong(songId) {
         .catch(error => {
             console.error('Error:', error);
             alert('Error deleting song');
+        });
+    }
+}
+
+// Queue Management Functions
+document.addEventListener('DOMContentLoaded', function() {
+    // Load queue status on page load
+    loadQueueStatus();
+    
+    // Queue management event listeners
+    const refreshQueueBtn = document.getElementById('refreshQueueBtn');
+    const activateTodayBtn = document.getElementById('activateTodayBtn');
+    const queueWeekBtn = document.getElementById('queueWeekBtn');
+    const clearQueueBtn = document.getElementById('clearQueueBtn');
+    
+    if (refreshQueueBtn) {
+        refreshQueueBtn.addEventListener('click', loadQueueStatus);
+    }
+    
+    if (activateTodayBtn) {
+        activateTodayBtn.addEventListener('click', activateToday);
+    }
+    
+    if (queueWeekBtn) {
+        queueWeekBtn.addEventListener('click', queueSelectedSongs);
+    }
+    
+    if (clearQueueBtn) {
+        clearQueueBtn.addEventListener('click', clearCurrentQueue);
+    }
+});
+
+function loadQueueStatus() {
+    fetch('/admin/queue_status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayQueueStatus(data.current_week, data.next_week);
+            } else {
+                console.error('Error loading queue status:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading queue status:', error);
+        });
+}
+
+function displayQueueStatus(currentWeek, nextWeek) {
+    const currentWeekDiv = document.getElementById('currentWeekQueue');
+    const nextWeekDiv = document.getElementById('nextWeekQueue');
+    
+    // Display current week
+    if (currentWeek.length === 0) {
+        currentWeekDiv.innerHTML = '<p>No songs queued for this week</p>';
+    } else {
+        currentWeekDiv.innerHTML = currentWeek.map(song => `
+            <div class="queue-item ${song.is_active ? 'active' : ''}">
+                <div class="queue-song-info">
+                    <strong>${song.title}</strong> - ${song.artist}
+                    <br><small>${song.date} (${song.status})</small>
+                </div>
+                ${song.is_active ? '<span class="status-badge status-success">Active</span>' : ''}
+            </div>
+        `).join('');
+    }
+    
+    // Display next week
+    if (nextWeek.length === 0) {
+        nextWeekDiv.innerHTML = '<p>No songs queued for next week</p>';
+    } else {
+        nextWeekDiv.innerHTML = nextWeek.map(song => `
+            <div class="queue-item">
+                <div class="queue-song-info">
+                    <strong>${song.title}</strong> - ${song.artist}
+                    <br><small>${song.date} (${song.status})</small>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+function activateToday() {
+    fetch('/admin/activate_today')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ ' + data.message);
+                loadQueueStatus();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error activating today:', error);
+            alert('❌ Network error occurred');
+        });
+}
+
+function queueSelectedSongs() {
+    const selectedSongs = [];
+    const checkboxes = document.querySelectorAll('.queue-song-checkbox:checked');
+    
+    checkboxes.forEach(checkbox => {
+        selectedSongs.push(parseInt(checkbox.value));
+    });
+    
+    if (selectedSongs.length === 0) {
+        alert('Please select at least one song to queue');
+        return;
+    }
+    
+    if (selectedSongs.length > 7) {
+        alert('Maximum 7 songs allowed per week');
+        return;
+    }
+    
+    fetch('/admin/queue_week', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            song_ids: selectedSongs
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            loadQueueStatus();
+            // Uncheck all checkboxes
+            document.querySelectorAll('.queue-song-checkbox').forEach(cb => cb.checked = false);
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error queuing songs:', error);
+        alert('❌ Network error occurred');
+    });
+}
+
+function clearCurrentQueue() {
+    if (confirm('Are you sure you want to clear the current week\'s queue? This action cannot be undone.')) {
+        fetch('/admin/clear_queue', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ ' + data.message);
+                loadQueueStatus();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error clearing queue:', error);
+            alert('❌ Network error occurred');
         });
     }
 } 

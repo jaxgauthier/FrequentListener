@@ -23,10 +23,13 @@
                         </div>
                         <div class="dropdown-divider"></div>
                         <a href="{{ url_for('main.profile') }}" class="dropdown-item">Profile</a>
+                        <a href="{{ url_for('main.song_history') }}" class="dropdown-item">Song History</a>
                         <a href="{{ url_for('main.logout') }}" class="dropdown-item">Logout</a>
                     {% else %}
                         <a href="{{ url_for('main.login') }}" class="dropdown-item">Login</a>
                         <a href="{{ url_for('main.signup') }}" class="dropdown-item">Sign Up</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('main.song_history') }}" class="dropdown-item">Song History</a>
                     {% endif %}
                 </div>
             </div>
@@ -42,11 +45,11 @@
             <h2>How to Play</h2>
             <p>Listen to the reconstructed audio and try to guess the original song!</p>
             <ul>
-                <li>Start with the hardest version (100 frequencies)</li>
+                <li>Start with the hardest version (500 frequencies)</li>
                 <li>Click the + button to reveal easier versions</li>
                 <li>Use the guess form below to submit your answer</li>
                 <li>You can guess at any time during the game</li>
-                <li>Score starts at 7 and decreases by 1 for each difficulty level revealed</li>
+                <li>Score starts at 8 and decreases by 1 for each difficulty level revealed</li>
                 {% if not current_user.is_authenticated %}
                 <li><a href="{{ url_for('main.login') }}" style="color: #667eea;">Sign in</a> to track your progress!</li>
                 {% endif %}
@@ -61,21 +64,22 @@
             <div class="score-display">
                 <div class="score-info">
                     <span class="score-label">Current Score:</span>
-                    <span class="score-value" id="scoreDisplay">7</span>
+                    <span class="score-value" id="scoreDisplay">8</span>
                 </div>
                 <div class="score-explanation">
-                    <small>Score starts at 7 and decreases by 1 for each difficulty level revealed</small>
+                    <small>Score starts at 8 and decreases by 1 for each difficulty level revealed</small>
                 </div>
             </div>
             
             <div class="audio-players">
                 {% if current_song and current_song.available_frequencies %}
                 {% set difficulty_labels = {
-                    '100': 'Hardest',
-                    '500': 'Very Hard', 
-                    '1000': 'Hard',
-                    '2000': 'Medium',
-                    '3500': 'Easier',
+                    '500': 'Hardest',
+                    '1000': 'Very Hard', 
+                    '1500': 'Hard',
+                    '2000': 'Medium-Hard',
+                    '2500': 'Medium',
+                    '3500': 'Medium-Easy',
                     '5000': 'Easy',
                     '7500': 'Easiest'
                 } %}
@@ -107,7 +111,7 @@
             <h3>Make Your Guess</h3>
             <form id="guessForm" class="guess-form">
                 <input type="hidden" id="difficultyLevel" name="difficulty_level" value="0">
-                <input type="hidden" id="currentScore" name="current_score" value="7">
+                <input type="hidden" id="currentScore" name="current_score" value="8">
                 <div class="form-group">
                     <label for="songGuess">Song Title:</label>
                     <div class="search-container">
@@ -160,7 +164,7 @@
             <div class="points-distribution">
                 <h4>Your All-Time Score Distribution</h4>
                 <div class="bar-graph">
-                    {% for score in range(8) %}
+                    {% for score in range(9) %}
                     <div class="bar-group">
                         <div class="bar-label">{{ score }}</div>
                         <div class="bar-container">

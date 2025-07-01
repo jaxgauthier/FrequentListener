@@ -73,6 +73,53 @@
                 </div>
             </div>
 
+            <!-- Weekly Queue Management -->
+            <div class="queue-section">
+                <h3>📅 Weekly Song Queue</h3>
+                <p>Queue songs for the current week. Songs will automatically activate each day and be deleted after 2 weeks.</p>
+                
+                <div class="queue-controls">
+                    <button id="refreshQueueBtn" class="btn btn-primary">🔄 Refresh Queue Status</button>
+                    <button id="activateTodayBtn" class="btn btn-success">🎯 Activate Today's Song</button>
+                    <button id="clearQueueBtn" class="btn btn-danger">🗑️ Clear Current Week Queue</button>
+                </div>
+                
+                <div id="queueStatus" class="queue-status">
+                    <div class="current-week">
+                        <h4>Current Week Queue</h4>
+                        <div id="currentWeekQueue" class="queue-list">
+                            <p>Loading...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="next-week">
+                        <h4>Next Week Queue</h4>
+                        <div id="nextWeekQueue" class="queue-list">
+                            <p>Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="queue-song-selection">
+                    <h4>Queue Songs for This Week</h4>
+                    <div class="song-selection-list">
+                        {% for song in songs %}
+                        <div class="song-selection-item">
+                            <input type="checkbox" id="queue_song_{{ song.id }}" value="{{ song.id }}" class="queue-song-checkbox">
+                            <label for="queue_song_{{ song.id }}">
+                                <strong>{{ song.title }}</strong> - {{ song.artist }}
+                                {% if song.available_frequencies %}
+                                <span class="freq-badge">✓ {{ song.available_frequencies|length }} freqs</span>
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button id="queueWeekBtn" class="btn btn-success">📅 Queue Selected Songs for Week</button>
+                    <div id="queueStatus" class="queue-status-message"></div>
+                </div>
+            </div>
+
             <!-- Current Songs List -->
             <div class="songs-section">
                 <h3>Current Songs</h3>

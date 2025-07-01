@@ -13,6 +13,7 @@ sys.path.insert(0, str(project_root))
 
 from app import create_app, db
 from app.models import User, AdminUser, Song, UserStats, SongStats
+from app.models.song import SongQueue, SongHistory
 
 def init_database():
     """Initialize the database with tables and default data"""

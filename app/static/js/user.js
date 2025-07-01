@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set initial score (starts at maximum for hardest difficulty)
     const scoreInput = document.getElementById('currentScore');
     if (scoreInput) {
-        const initialScore = Math.max(0, 7 - currentDifficulty);
+        const initialScore = Math.max(0, 8 - currentDifficulty);
         scoreInput.value = initialScore;
     }
     
@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (scoreInput) {
             // Score starts at 7 for hardest difficulty (0 difficulty level)
             // and decreases by 1 for each easier level revealed
-            const newScore = Math.max(0, 7 - currentDifficulty);
+            const newScore = Math.max(0, 8 - currentDifficulty);
             scoreInput.value = newScore;
             updateScoreDisplay();
         }
