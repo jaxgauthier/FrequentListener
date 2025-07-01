@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Audio Frequency Game{% endblock %}</title>
+    
+    <!-- CSS Assets -->
+    {% block css_assets %}
+        {% from 'app.utils.asset_helpers' import get_css_assets %}
+        {% set css_files = get_css_assets() %}
+        {% for css_file in css_files %}
+            <link rel="stylesheet" href="{{ css_file }}">
+        {% endfor %}
+    {% endblock %}
+    
+    <!-- Page-specific CSS -->
+    {% block extra_css %}{% endblock %}
+    
+    <!-- Preload critical assets -->
+    <link rel="preload" href="{{ url_for('static', filename='js/user.js') }}" as="script">
+    <link rel="preload" href="{{ url_for('static', filename='css/user.css') }}" as="style">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    
+    <!-- Meta tags for SEO -->
+    <meta name="description" content="Test your music knowledge with our Audio Frequency Game - guess songs from frequency-filtered audio clips!">
+    <meta name="keywords" content="music game, audio frequency, song guessing, music quiz">
+    <meta name="author" content="Audio Frequency Game">
+    
+    <!-- Open Graph tags -->
+    <meta property="og:title" content="Audio Frequency Game">
+    <meta property="og:description" content="Test your music knowledge with frequency-filtered audio clips">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    
+    <!-- Twitter Card tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Audio Frequency Game">
+    <meta name="twitter:description" content="Test your music knowledge with frequency-filtered audio clips">
+</head>
+<body>
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- JavaScript Assets -->
+    {% block js_assets %}
+        {% from 'app.utils.asset_helpers' import get_js_assets %}
+        {% set js_files = get_js_assets() %}
+        {% for js_file in js_files %}
+            <script src="{{ js_file }}" defer></script>
+        {% endfor %}
+    {% endblock %}
+    
+    <!-- Page-specific JavaScript -->
+    {% block extra_js %}{% endblock %}
+    
+    <!-- Performance monitoring -->
+    <script>
+        // Basic performance monitoring
+        window.addEventListener('load', function() {
+            if ('performance' in window) {
+                const perfData = performance.getEntriesByType('navigation')[0];
+                console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+            }
+        });
+    </script>
+</body>
+</html> 

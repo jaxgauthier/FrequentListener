@@ -500,4 +500,165 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear the form for the next guess
         guessForm.reset();
     });
+
+    // --- Hybrid State Persistence for Revealed Audio Players ---
+    // Assumes a global variable currentSongId and isLoggedIn are available (set in template)
+
+    function getRevealedFrequencies() {
+        // Get all revealed audio player frequencies (as strings)
+        const revealed = [];
+        document.querySelectorAll('.audio-player').forEach(function(player) {
+            if (player.style.display !== 'none') {
+                const freq = player.id.replace('audio-', '');
+                revealed.push(freq);
+            }
+        });
+        return revealed;
+    }
+
+    function setRevealedFrequencies(freqs) {
+        // Hide all, then show those in freqs
+        document.querySelectorAll('.audio-player').forEach(function(player, idx) {
+            const freq = player.id.replace('audio-', '');
+            if (freqs.includes(freq)) {
+                player.style.display = '';
+            } else {
+                player.style.display = 'none';
+            }
+        });
+        // Update currentDifficulty to match revealed
+        if (window.frequencies && Array.isArray(window.frequencies)) {
+            window.currentDifficulty = freqs.length - 1;
+        } else if (typeof currentDifficulty !== 'undefined') {
+            currentDifficulty = freqs.length - 1;
+        }
+        // Update hidden inputs
+        var difficultyInput = document.getElementById('difficultyLevel');
+        if (difficultyInput) difficultyInput.value = freqs.length - 1;
+        var scoreInput = document.getElementById('currentScore');
+        var score = Math.max(8 - (freqs.length - 1), 1);
+        if (scoreInput) scoreInput.value = score;
+        // Update score display
+        var scoreEl = document.getElementById('scoreDisplay');
+        if (scoreEl) scoreEl.textContent = score;
+    }
+
+    function savePlayerState() {
+        const revealed = getRevealedFrequencies();
+        if (window.isLoggedIn) {
+            // Save to backend
+            fetch('/api/save_player_state', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ song_id: window.currentSongId, revealed_frequencies: revealed })
+            });
+        } else {
+            // Save to localStorage
+            const key = 'revealedPlayers_' + window.currentSongId;
+            localStorage.setItem(key, JSON.stringify(revealed));
+        }
+    }
+
+    function loadPlayerState() {
+        if (window.isLoggedIn) {
+            // Load from backend
+            fetch('/api/get_player_state?song_id=' + window.currentSongId)
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.success && Array.isArray(data.revealed_frequencies) && data.revealed_frequencies.length > 0) {
+                        setRevealedFrequencies(data.revealed_frequencies);
+                    } else {
+                        // Default: show only the first
+                        setRevealedFrequencies([document.querySelector('.audio-player').id.replace('audio-', '')]);
+                    }
+                });
+        } else {
+            // Load from localStorage
+            const key = 'revealedPlayers_' + window.currentSongId;
+            const val = localStorage.getItem(key);
+            if (val) {
+                try {
+                    const arr = JSON.parse(val);
+                    if (Array.isArray(arr) && arr.length > 0) {
+                        setRevealedFrequencies(arr);
+                        return;
+                    }
+                } catch {}
+            }
+            // Default: show only the first
+            setRevealedFrequencies([document.querySelector('.audio-player').id.replace('audio-', '')]);
+        }
+    }
+
+    // Patch addNextDifficulty to save state after revealing
+    const origAddNextDifficulty = window.addNextDifficulty;
+    window.addNextDifficulty = function() {
+        if (typeof origAddNextDifficulty === 'function') origAddNextDifficulty();
+        savePlayerState();
+    };
+
+    // Set window.currentSongId and window.isLoggedIn from template context
+    // (You need to add these variables in your user.html template)
+    loadPlayerState();
+
+    // Custom audio player logic
+    document.querySelectorAll('.custom-audio-player').forEach(function(wrapper) {
+        var audioId = wrapper.getAttribute('data-audio-id');
+        var audio = document.getElementById(audioId);
+        var playBtn = wrapper.querySelector('.custom-audio-play');
+        var iconSpan = playBtn.querySelector('.custom-audio-icon');
+        var timeDisplay = wrapper.querySelector('.custom-audio-time');
+        var progress = wrapper.querySelector('.custom-audio-progress');
+        if (!audio || !playBtn || !iconSpan || !timeDisplay || !progress) return;
+
+        // SVGs for play and pause
+        var playSVG = '<svg class="icon-play" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="5,3 19,11 5,19" fill="currentColor"/></svg>';
+        var pauseSVG = '<svg class="icon-pause" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="3" width="4" height="16" fill="currentColor"/><rect x="13" y="3" width="4" height="16" fill="currentColor"/></svg>';
+
+        // Play/pause logic
+        playBtn.addEventListener('click', function() {
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+            }
+        });
+        audio.addEventListener('play', function() {
+            playBtn.setAttribute('data-state', 'pause');
+            iconSpan.innerHTML = pauseSVG;
+        });
+        audio.addEventListener('pause', function() {
+            playBtn.setAttribute('data-state', 'play');
+            iconSpan.innerHTML = playSVG;
+        });
+        // Time update
+        audio.addEventListener('timeupdate', function() {
+            var cur = Math.floor(audio.currentTime);
+            var dur = Math.floor(audio.duration) || 0;
+            timeDisplay.textContent = formatTime(cur) + ' / ' + formatTime(dur);
+            var percent = (audio.currentTime / (audio.duration || 1)) * 100;
+            progress.value = percent;
+        });
+        // Progress bar seeking
+        progress.addEventListener('input', function() {
+            var seekTime = (progress.value / 100) * (audio.duration || 1);
+            audio.currentTime = seekTime;
+        });
+        // Reset on end
+        audio.addEventListener('ended', function() {
+            playBtn.setAttribute('data-state', 'play');
+            iconSpan.innerHTML = playSVG;
+            progress.value = 0;
+        });
+        // Init
+        audio.addEventListener('loadedmetadata', function() {
+            var dur = Math.floor(audio.duration) || 0;
+            timeDisplay.textContent = '0:00 / ' + formatTime(dur);
+        });
+    });
+    function formatTime(sec) {
+        var m = Math.floor(sec / 60);
+        var s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
 }); 

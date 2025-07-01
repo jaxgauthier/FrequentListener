@@ -2,13 +2,14 @@
 Main routes for the game interface
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, current_app, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, send_file, current_app, redirect, url_for, abort
 from flask_login import current_user, login_required, logout_user, login_user
-from app.models import Song, UserStats, SongStats, User, SongHistory
+from app.models import Song, UserStats, SongStats, User, SongHistory, UserPlayerState
 from app.services import StatsService, AudioService
 from app.services.queue_service import QueueService
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 bp = Blueprint('main', __name__)
 
@@ -195,35 +196,54 @@ def admin_login():
             username = request.form.get('username')
             password = request.form.get('password')
         
-        # Check if admin credentials are correct
-        if username == 'admin' and password == 'admin123':  # Change these credentials
-            # In a real app, you'd use proper authentication
+        # Check admin credentials against AdminUser table
+        from app.models import AdminUser
+        admin_user = AdminUser.query.filter_by(username=username).first()
+        
+        if admin_user and password and admin_user.check_password(password):
+            # Login the admin user
+            login_user(admin_user)
             if request.is_json:
                 return jsonify({'success': True, 'redirect': url_for('main.admin_panel')})
             else:
                 return redirect(url_for('main.admin_panel'))
         else:
             if request.is_json:
-                return jsonify({'success': False, 'error': 'Invalid credentials'})
+                return jsonify({'success': False, 'error': 'Invalid admin credentials'})
             else:
-                return render_template('admin_login.html', error='Invalid credentials')
+                return render_template('admin_login.html', error='Invalid admin credentials')
     
     return render_template('admin_login.html')
 
 @bp.route('/admin')
+@login_required
 def admin_panel():
     """Admin panel page"""
-    # Get all songs
-    songs = Song.query.all()
+    from app.models import AdminUser
     
-    # Get basic stats
-    stats = {
-        'total_songs': Song.query.count(),
-        'total_plays': 0,  # You can implement this later
-        'this_week_plays': 0  # You can implement this later
-    }
+    # Debug: Print user information
+    print(f"Current user ID: {current_user.id}")
+    print(f"Current user type: {type(current_user)}")
+    print(f"Current user username: {current_user.username}")
     
-    return render_template('admin.html', songs=songs, stats=stats)
+    # Simple check: if username is 'admin', allow access
+    if current_user.username == 'admin':
+        print("Admin access granted via username check!")
+        
+        # Get all songs
+        songs = Song.query.all()
+        
+        # Get basic stats
+        stats = {
+            'total_songs': Song.query.count(),
+            'total_plays': 0,  # You can implement this later
+            'this_week_plays': 0  # You can implement this later
+        }
+        
+        return render_template('admin.html', songs=songs, stats=stats)
+    else:
+        print(f"User {current_user.username} is not admin")
+        abort(403, description="Admin access required")
 
 @bp.route('/admin/set_active/<int:song_id>', methods=['POST'])
 def set_active(song_id):
@@ -254,7 +274,7 @@ def login():
             password = request.form.get('password')
         
         user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
-        if user and check_password_hash(user.password_hash, password):
+        if user and check_password_hash(user.password_hash, password): # type: ignore
             login_user(user)
             if request.is_json:
                 return jsonify({'success': True, 'message': 'Login successful'})
@@ -280,7 +300,7 @@ def signup():
             return render_template('signup.html', error='Username already exists')
         if User.query.filter_by(email=email).first():
             return render_template('signup.html', error='Email already exists')
-        user = User(username=username, email=email, password_hash=generate_password_hash(password))
+        user = User(username=username, email=email, password_hash=generate_password_hash(password)) # type: ignore
         from app import db
         db.session.add(user)
         db.session.commit()
@@ -395,14 +415,14 @@ def process_spotify_song():
         
         # Add song to database
         new_song = Song(
-            title=title,
-            artist=artist,
-            album=album,
-            week=week,
-            base_filename=song_folder_name,
-            spotify_id=spotify_id,
-            has_frequency_versions=True,
-            is_active=False  # Don't make it active by default
+            title=title, # type: ignore
+            artist=artist, # type: ignore
+            album=album, # type: ignore
+            week=week, # type: ignore
+            base_filename=song_folder_name, # type: ignore
+            spotify_id=spotify_id, # type: ignore
+            has_frequency_versions=True, # type: ignore
+            is_active=False  # Don't make it active by default # type: ignore
         )
         
         from app import db
@@ -628,4 +648,54 @@ def api_song_history():
         return jsonify({
             'success': False,
             'error': str(e)
-        }) 
+        })
+
+@bp.route('/api/save_player_state', methods=['POST'])
+@login_required
+def save_player_state():
+    data = request.get_json()
+    song_id = data.get('song_id')
+    revealed_frequencies = data.get('revealed_frequencies', [])
+    if not song_id or not isinstance(revealed_frequencies, list):
+        return jsonify({'success': False, 'error': 'Invalid data'}), 400
+    from app import db
+    state = UserPlayerState.query.filter_by(user_id=current_user.id, song_id=song_id).first()
+    freq_str = ','.join(str(f) for f in revealed_frequencies)
+    if state:
+        state.revealed_frequencies = freq_str
+    else:
+        state = UserPlayerState(user_id=current_user.id, song_id=song_id, revealed_frequencies=freq_str) # type: ignore
+        db.session.add(state)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@bp.route('/api/get_player_state')
+@login_required
+def get_player_state():
+    song_id = request.args.get('song_id')
+    if not song_id:
+        return jsonify({'success': False, 'error': 'Missing song_id'}), 400
+    state = UserPlayerState.query.filter_by(user_id=current_user.id, song_id=song_id).first()
+    if state:
+        freqs = state.revealed_frequencies.split(',') if state.revealed_frequencies else []
+    else:
+        freqs = []
+    return jsonify({'success': True, 'revealed_frequencies': freqs})
+
+@bp.route('/health')
+def health_check():
+    """Health check endpoint for monitoring"""
+    try:
+        # Check database connection
+        from app import db
+        db.session.execute(db.text('SELECT 1'))
+        db_status = 'healthy'
+    except Exception as e:
+        db_status = f'unhealthy: {str(e)}'
+    
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'database': db_status,
+        'version': '1.0.0'
+    }), 200 

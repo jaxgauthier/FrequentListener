@@ -41,19 +41,12 @@
         </div>
 
         <!-- Rules Section -->
-        <section class="rules-section">
+        <section class="how-to-play-simple">
             <h2>How to Play</h2>
-            <p>Listen to the reconstructed audio and try to guess the original song!</p>
-            <ul>
-                <li>Start with the hardest version (500 frequencies)</li>
-                <li>Click the + button to reveal easier versions</li>
-                <li>Use the guess form below to submit your answer</li>
-                <li>You can guess at any time during the game</li>
-                <li>Score starts at 8 and decreases by 1 for each difficulty level revealed</li>
-                {% if not current_user.is_authenticated %}
-                <li><a href="{{ url_for('main.login') }}" style="color: #667eea;">Sign in</a> to track your progress!</li>
-                {% endif %}
-            </ul>
+            <p class="rules-paragraph">
+                Start with the hardest version (500 frequencies) and click the <b>+</b> button to reveal easier versions. 
+                Submit your guess at any time - your score starts at 8 and drops by 1 for each easier version you reveal.
+            </p>
         </section>
 
         <!-- Audio Players -->
@@ -61,14 +54,9 @@
             <h3>Listen to the Reconstructed Audio</h3>
             
             <!-- Score Display -->
-            <div class="score-display">
-                <div class="score-info">
-                    <span class="score-label">Current Score:</span>
-                    <span class="score-value" id="scoreDisplay">8</span>
-                </div>
-                <div class="score-explanation">
-                    <small>Score starts at 8 and decreases by 1 for each difficulty level revealed</small>
-                </div>
+            <div class="score-display-above" id="floatingScore">
+                <span class="score-label-above">Current Score:</span>
+                <span class="score-value-above" id="scoreDisplay">8</span>
             </div>
             
             <div class="audio-players">
@@ -87,7 +75,19 @@
                 {% for freq in current_song.available_frequencies %}
                 <div class="audio-player" id="audio-{{ freq }}" {% if loop.index > 1 %}style="display: none;"{% endif %}>
                     <h4>{{ freq }} Frequencies ({{ difficulty_labels.get(freq, 'Unknown') }})</h4>
-                    <audio controls>
+                    <div class="custom-audio-player" data-audio-id="audio-el-{{ freq }}">
+                        <button class="custom-audio-play" data-state="play">
+                            <span class="custom-audio-icon">
+                                <!-- Play SVG -->
+                                <svg class="icon-play" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <polygon points="5,3 19,11 5,19" fill="currentColor"/>
+                                </svg>
+                            </span>
+                        </button>
+                        <span class="custom-audio-time">0:00 / 0:00</span>
+                        <input type="range" class="custom-audio-progress" value="0" min="0" max="100" step="1">
+                    </div>
+                    <audio id="audio-el-{{ freq }}" style="display:none">
                         <source src="{{ url_for('main.play_frequency_audio', song_name=current_song.base_filename, frequency=freq) }}" type="audio/wav">
                         Your browser does not support the audio element.
                     </audio>
@@ -182,6 +182,10 @@
         </section>
     </div>
 
+    <script>
+        window.currentSongId = {{ current_song.id if current_song else 'null' }}; 
+        window.isLoggedIn = {{ 'true' if current_user.is_authenticated else 'false' }};
+    </script>
     <script src="{{ url_for('static', filename='js/user.js') }}"></script>
 </body>
 </html> 

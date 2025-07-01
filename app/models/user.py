@@ -34,7 +34,7 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
-class AdminUser(db.Model):
+class AdminUser(UserMixin, db.Model):
     """Admin user model for admin panel access"""
     __tablename__ = 'admin_users'
     
@@ -57,5 +57,22 @@ class AdminUser(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Load user for Flask-Login"""
-    return User.query.get(int(user_id)) 
+    """Load user for Flask-Login - checks both regular users and admin users"""
+    # First try to find a regular user
+    user = User.query.get(int(user_id))
+    if user:
+        return user
+    
+    # If not found, try to find an admin user
+    admin_user = AdminUser.query.get(int(user_id))
+    return admin_user
+
+class UserPlayerState(db.Model):
+    __tablename__ = 'user_player_state'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    song_id = db.Column(db.Integer, db.ForeignKey('songs.id'), nullable=False)
+    revealed_frequencies = db.Column(db.String(200), nullable=False)  # Comma-separated list
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'song_id', name='_user_song_uc'),) 
