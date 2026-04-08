@@ -38,11 +38,15 @@ def init_database():
         uploads_dir.mkdir(exist_ok=True)
         output_dir.mkdir(exist_ok=True)
         print("✅ Audio directories created")
+
+        from app.utils.dev_seed import ensure_dev_defaults
+        ensure_dev_defaults()
+        print("✅ Dev defaults: admin user + demo song (if no active song)")
         
         print("\n🎉 Database initialization complete!")
         print("\nNext steps:")
-        print("1. Create an admin user: python scripts/create_admin.py")
-        print("2. Set up environment variables in .env file")
+        print("1. Admin login: /admin/login  (user: admin, password: MadJax195)")
+        print("2. Optional: python scripts/create_admin.py  (same password reset)")
         print("3. Run the application: python run.py")
 
 if __name__ == "__main__":

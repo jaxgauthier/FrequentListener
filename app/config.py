@@ -6,7 +6,11 @@ import os
 import logging
 from datetime import timedelta
 from logging.handlers import RotatingFileHandler
-from urllib.parse import urlparse
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DEFAULT_SQLITE_PATH = os.path.abspath(os.path.join(_PROJECT_ROOT, 'data', 'game.db'))
+# Absolute path so SQLite works regardless of cwd (e.g. running scripts from scripts/)
+_DEFAULT_SQLITE_URI = 'sqlite:///' + _DEFAULT_SQLITE_PATH.replace('\\', '/')
+
 
 class Config:
     """Base configuration class"""
@@ -20,7 +24,7 @@ class Config:
         # Railway uses postgres:// but SQLAlchemy expects postgresql://
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
     
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL or 'sqlite:///data/game.db'
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL or _DEFAULT_SQLITE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # File Upload Configuration
@@ -96,7 +100,12 @@ class DevelopmentConfig(Config):
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
-        # Development-specific logging
+        os.makedirs(os.path.join(_PROJECT_ROOT, 'data'), exist_ok=True)
+        upload = app.config['UPLOAD_FOLDER']
+        if not os.path.isabs(upload):
+            upload = os.path.join(_PROJECT_ROOT, upload)
+        os.makedirs(upload, exist_ok=True)
+        os.makedirs(app.config['AUDIO_OUTPUT_FOLDER'], exist_ok=True)
         app.logger.info('Development mode enabled')
 
 class ProductionConfig(Config):
@@ -104,16 +113,17 @@ class ProductionConfig(Config):
     DEBUG = False
     FLASK_ENV = 'production'
     
-    # Production-specific settings
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-    if not SQLALCHEMY_DATABASE_URI:
-        raise ValueError("DATABASE_URL environment variable is required for production")
-    
     # Enable CDN in production if configured
     USE_CDN = os.environ.get('USE_CDN', 'True').lower() == 'true'
     
     @classmethod
     def init_app(cls, app):
+        uri = os.environ.get('DATABASE_URL')
+        if not uri:
+            raise ValueError("DATABASE_URL environment variable is required for production")
+        if uri.startswith('postgres://'):
+            uri = uri.replace('postgres://', 'postgresql://', 1)
+        app.config['SQLALCHEMY_DATABASE_URI'] = uri
         Config.init_app(app)
         
         # Production security headers

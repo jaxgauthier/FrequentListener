@@ -17,7 +17,7 @@ def create_app(config_name=None):
     
     # Load configuration
     if config_name is None:
-        config_name = os.environ.get('FLASK_ENV', 'development')
+        config_name = os.environ.get('FLASK_ENV', 'development').strip().lower() or 'development'
     
     if config_name == 'production':
         config_class = 'app.config.ProductionConfig'
@@ -63,30 +63,24 @@ def create_app(config_name=None):
     
     @login_manager.user_loader
     def load_user(user_id):
-        """Load user for Flask-Login - checks both regular users and admin users"""
-        print(f"Loading user with ID: {user_id}")
-        
-        # First try to find a regular user
-        user = User.query.get(int(user_id))
-        if user:
-            print(f"Found regular user: {user.username} (type: {type(user)})")
-            return user
-        
-        # If not found, try to find an admin user
-        admin_user = AdminUser.query.get(int(user_id))
-        if admin_user:
-            print(f"Found admin user: {admin_user.username} (type: {type(admin_user)})")
-        else:
-            print(f"No user found with ID: {user_id}")
-        return admin_user
-    
-    # Railway-specific: Serve static files with whitenoise in production
-    if config_name == 'production':
-        try:
-            from whitenoise import WhiteNoise
-            app.wsgi_app = WhiteNoise(app.wsgi_app, root='app/static/')
-            app.wsgi_app.add_files('app/static/', prefix='static/')
-        except ImportError:
-            app.logger.warning("WhiteNoise not available, using default static file serving")
+        """Resolve Flask-Login session id (regular ids vs admin:{id})."""
+        if user_id is None:
+            return None
+        s = str(user_id)
+        if s.startswith('admin:'):
+            pk = int(s[6:], 10)
+            return AdminUser.query.get(pk)
+        return User.query.get(int(s, 10))
+
+    if config_name == 'development':
+        with app.app_context():
+            try:
+                from sqlalchemy import inspect
+                if inspect(db.engine).has_table('songs'):
+                    from app.utils.dev_seed import ensure_default_song_works
+                    ensure_default_song_works()
+                    db.session.commit()
+            except Exception as exc:
+                app.logger.warning('Default song setup skipped: %s', exc)
     
     return app 

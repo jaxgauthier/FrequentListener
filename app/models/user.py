@@ -4,7 +4,7 @@ User models for authentication and authorization
 
 # pyright: reportGeneralTypeIssues=false
 
-from app import db, login_manager
+from app import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -55,17 +55,9 @@ class AdminUser(UserMixin, db.Model):
     def __repr__(self):
         return f'<AdminUser {self.username}>'
 
-@login_manager.user_loader
-def load_user(user_id):
-    """Load user for Flask-Login - checks both regular users and admin users"""
-    # First try to find a regular user
-    user = User.query.get(int(user_id))
-    if user:
-        return user
-    
-    # If not found, try to find an admin user
-    admin_user = AdminUser.query.get(int(user_id))
-    return admin_user
+    def get_id(self):
+        # Must not collide with User.id in session (both tables can have id=1).
+        return f'admin:{self.id}'
 
 class UserPlayerState(db.Model):
     __tablename__ = 'user_player_state'

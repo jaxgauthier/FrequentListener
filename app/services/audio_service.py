@@ -9,7 +9,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import numpy as np
-import soundfile as sf
 import tempfile
 from pydub import AudioSegment
 import yt_dlp
@@ -122,7 +121,7 @@ class AudioService:
             
             # Import the required functions
             from audio.layersFFT import read_audio_file
-            from audio.manim_to_audio import save_audio
+            from app.utils.helpers.read_wav_file import save_audio
             
             # Read audio file
             data, sample_rate, num_channels = read_audio_file(input_file)

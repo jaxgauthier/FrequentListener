@@ -16,12 +16,15 @@ def main():
     app = create_app()
     
     # Get configuration from environment variables
-    host = os.environ.get('HOST', '127.0.0.1')
+    # Default :: so both http://localhost (often IPv6 ::1) and http://127.0.0.1 work on macOS.
+    # Override with HOST=127.0.0.1 if your platform rejects ::.
+    host = os.environ.get('HOST', '::')
     port = int(os.environ.get('PORT', 5001))
     debug = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
     
     print(f"🚀 Starting Audio Frequency Game...")
-    print(f"📍 Server: http://{host}:{port}")
+    print(f"📍 Open in browser: http://127.0.0.1:{port}  or  http://localhost:{port}")
+    print(f"   (listening on host {host!r} — keep this terminal open while testing)")
     print(f"🔧 Debug mode: {debug}")
     print(f"🌍 Environment: {os.environ.get('FLASK_ENV', 'development')}")
     

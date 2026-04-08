@@ -1,5 +1,8 @@
 import wave
+
 import numpy as np
+import soundfile as sf
+
 
 def read_wav_file(file_path):
     with wave.open(file_path, 'rb') as wav_file:
@@ -18,5 +21,6 @@ def read_wav_file(file_path):
         data = data.astype(np.float32) / 32768.0
         return data, sample_rate, num_channels
 
-    
-    
+
+def save_audio(audio_data, sample_rate, output_file):
+    sf.write(output_file, audio_data, sample_rate)

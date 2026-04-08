@@ -2,7 +2,7 @@
 Main routes for the game interface
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, current_app, redirect, url_for, abort
+from flask import Blueprint, render_template, request, jsonify, send_file, current_app, redirect, url_for, abort, session
 from flask_login import current_user, login_required, logout_user, login_user
 from app.models import Song, UserStats, SongStats, User, SongHistory, UserPlayerState
 from app.services import StatsService, AudioService
@@ -201,8 +201,8 @@ def admin_login():
         admin_user = AdminUser.query.filter_by(username=username).first()
         
         if admin_user and password and admin_user.check_password(password):
-            # Login the admin user
-            login_user(admin_user)
+            session.permanent = True
+            login_user(admin_user, remember=True)
             if request.is_json:
                 return jsonify({'success': True, 'redirect': url_for('main.admin_panel')})
             else:
@@ -220,30 +220,19 @@ def admin_login():
 def admin_panel():
     """Admin panel page"""
     from app.models import AdminUser
-    
-    # Debug: Print user information
-    print(f"Current user ID: {current_user.id}")
-    print(f"Current user type: {type(current_user)}")
-    print(f"Current user username: {current_user.username}")
-    
-    # Simple check: if username is 'admin', allow access
-    if current_user.username == 'admin':
-        print("Admin access granted via username check!")
-        
-        # Get all songs
-        songs = Song.query.all()
-        
-        # Get basic stats
-        stats = {
-            'total_songs': Song.query.count(),
-            'total_plays': 0,  # You can implement this later
-            'this_week_plays': 0  # You can implement this later
-        }
-        
-        return render_template('admin.html', songs=songs, stats=stats)
-    else:
-        print(f"User {current_user.username} is not admin")
+
+    if not isinstance(current_user, AdminUser):
         abort(403, description="Admin access required")
+
+    songs = Song.query.all()
+
+    stats = {
+        'total_songs': Song.query.count(),
+        'total_plays': 0,
+        'this_week_plays': 0
+    }
+
+    return render_template('admin.html', songs=songs, stats=stats)
 
 @bp.route('/admin/set_active/<int:song_id>', methods=['POST'])
 def set_active(song_id):
