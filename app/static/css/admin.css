@@ -297,6 +297,16 @@ body {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
+.spotify-search-error {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #b71c1c;
+    background: #ffebee;
+    border-bottom: 1px solid #ffcdd2;
+    max-height: none;
+}
+
 .spotify-suggestion-item {
     padding: 0.5rem 0.75rem;
     cursor: pointer;

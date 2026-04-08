@@ -104,6 +104,10 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`/spotify_search?q=${encodeURIComponent(query)}`)
             .then(response => response.json())
             .then(data => {
+                if (data.error) {
+                    showSpotifySearchError(data.error);
+                    return;
+                }
                 if (data.tracks && data.tracks.length > 0) {
                     showSpotifySuggestions(data.tracks);
                 } else {
@@ -115,8 +119,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 hideSpotifySuggestions();
             });
     }
+
+    function showSpotifySearchError(message) {
+        spotifySuggestions.innerHTML = '';
+        spotifySuggestions.style.maxHeight = 'none';
+        const el = document.createElement('div');
+        el.className = 'spotify-search-error';
+        el.textContent = message;
+        spotifySuggestions.appendChild(el);
+        spotifySuggestions.style.display = 'block';
+    }
     
     function showSpotifySuggestions(tracks) {
+        spotifySuggestions.style.maxHeight = '';
         spotifySuggestions.innerHTML = '';
         
         // Limit to first 5 suggestions to keep dropdown small
@@ -146,6 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function hideSpotifySuggestions() {
         spotifySuggestions.style.display = 'none';
+        spotifySuggestions.style.maxHeight = '';
         spotifySuggestions.innerHTML = '';
     }
     
@@ -212,8 +228,8 @@ document.addEventListener('DOMContentLoaded', function() {
         progressText.textContent = 'Starting download...';
         progressDetails.textContent = `Downloading "${track.name}" by ${track.artist} from YouTube...`;
         
-        // Disable the process button
-        const processBtn = document.querySelector(`button[onclick*="${track.id}"]`);
+        // Disable the process button (Spotify flow uses #processSongBtn, not per-track onclick buttons)
+        const processBtn = document.getElementById('processSongBtn');
         if (processBtn) {
             processBtn.disabled = true;
             processBtn.textContent = 'Processing...';
@@ -259,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                spotify_id: track.id,
+                spotify_id: track.spotify_id,
                 title: track.name,
                 artist: track.artist,
                 album: track.album,

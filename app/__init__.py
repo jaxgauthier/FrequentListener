@@ -13,6 +13,11 @@ login_manager = LoginManager()
 
 def create_app(config_name=None):
     """Application factory pattern"""
+    from dotenv import load_dotenv
+
+    _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv(os.path.join(_project_root, '.env'))
+
     app = Flask(__name__)
     
     # Load configuration

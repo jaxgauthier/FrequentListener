@@ -315,6 +315,20 @@ def spotify_search():
     
     if not query:
         return jsonify({'tracks': []})
+
+    client_id = (current_app.config.get('SPOTIFY_CLIENT_ID') or '').strip()
+    client_secret = (current_app.config.get('SPOTIFY_CLIENT_SECRET') or '').strip()
+    if not client_id or not client_secret:
+        return jsonify({
+            'tracks': [],
+            'error': (
+                'Spotify API credentials are missing. Create an app at '
+                'https://developer.spotify.com/dashboard then set SPOTIFY_CLIENT_ID and '
+                'SPOTIFY_CLIENT_SECRET in a .env file in the project root (or in your '
+                'deployment environment).'
+            ),
+            'missing_credentials': True,
+        })
     
     try:
         # Import spotipy here to avoid circular imports
@@ -323,8 +337,8 @@ def spotify_search():
         
         # Initialize Spotify client
         client_credentials_manager = SpotifyClientCredentials(
-            client_id=os.environ.get('SPOTIFY_CLIENT_ID'),
-            client_secret=os.environ.get('SPOTIFY_CLIENT_SECRET')
+            client_id=client_id,
+            client_secret=client_secret
         )
         sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
         
@@ -346,7 +360,7 @@ def spotify_search():
         return jsonify({'tracks': tracks})
         
     except Exception as e:
-        print(f"Spotify search error: {e}")
+        current_app.logger.warning('Spotify search error: %s', e)
         return jsonify({'tracks': [], 'error': str(e)})
 
 @bp.route('/admin/process_spotify_song', methods=['POST'])

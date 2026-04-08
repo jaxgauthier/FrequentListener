@@ -6,9 +6,6 @@ Also stores song information such as every song used as well as average score pe
 Has an admin side that controls the current song as well as the next songs in a weekly queue. 
 Uses apis from both Youtube and Spotify to get song information and audio.
 
-Run with `python scripts/init_db.py` then `python run.py` (Python 3.11, `pip install -r requirements.txt`).
-
-In **development**, the game always plays the song whose `Song.base_filename` matches **`FORCED_PLAYBACK_BASE_FILENAME`** in `app/config.py` (`DevelopmentConfig`, default `'DemoSong'`). Set it to another folder name under `audio/OutputWAVS/` as long as a matching row exists in the database. Set to `None` there to use whichever song has `is_active=True` instead.
 
 ## User Side
 Users are able to create an account that then gets stored in the database. These stores their scores from every game they have played, their total accuracy, and games played.

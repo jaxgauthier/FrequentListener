@@ -283,36 +283,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 statsSection.style.display = 'block';
             }
             
-            // Get the correct answer from the server
-            fetch('/submit_guess', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    song_title: 'Mr Brightside',
-                    artist: 'The Killers',
-                    guess: 'skip_all'
+            // Reveal answer without POST /submit_guess (avoids wrong payload + bogus stats rows)
+            fetch('/current_stats')
+                .then(response => response.json())
+                .then(async (data) => {
+                    if (data.success && data.song) {
+                        const t = data.song.title;
+                        const a = data.song.artist;
+                        correctAnswer.innerHTML = `<p>The song is: <strong>${t}</strong> by <strong>${a}</strong></p>`;
+                        await updateStatsSection();
+                    } else {
+                        correctAnswer.innerHTML = '<p>Could not load the answer.</p>';
+                    }
                 })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.correct) {
-                    correctAnswer.innerHTML = `
-                        <h4>🎉 Correct!</h4>
-                        <p>The song is: ${data.song_title} by ${data.artist}</p>
-                    `;
-                } else {
-                    correctAnswer.innerHTML = `
-                        <h4>❌ Incorrect</h4>
-                        <p>The correct answer is: ${data.song_title} by ${data.artist}</p>
-                    `;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                correctAnswer.innerHTML = '<p>Error getting answer</p>';
-            });
+                .catch((error) => {
+                    console.error('Error:', error);
+                    correctAnswer.innerHTML = '<p>Error getting answer</p>';
+                });
             
             // Hide the plus button since we've shown all difficulties
             document.querySelector('.plus-button-container').style.display = 'none';
