@@ -56,8 +56,11 @@ class Config:
     STATIC_FOLDER = 'static'
     STATIC_URL_PATH = '/static'
     
-    # Railway Configuration
     PORT = int(os.environ.get('PORT', 5001))
+
+    # If set, the public game uses this Song.base_filename (folder under audio/OutputWAVS)
+    # instead of whichever row has is_active=True. None = follow the database.
+    FORCED_PLAYBACK_BASE_FILENAME = None
     
     @staticmethod
     def init_app(app):
@@ -96,6 +99,8 @@ class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True
     FLASK_ENV = 'development'
+    # Change to any folder name that matches Song.base_filename + audio/OutputWAVS/<name>/
+    FORCED_PLAYBACK_BASE_FILENAME = 'Lit_MyOwnWorstEnemy'
     
     @classmethod
     def init_app(cls, app):
@@ -140,4 +145,5 @@ class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-    WTF_CSRF_ENABLED = False 
+    WTF_CSRF_ENABLED = False
+    FORCED_PLAYBACK_BASE_FILENAME = None 

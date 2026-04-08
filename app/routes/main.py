@@ -13,11 +13,23 @@ from datetime import datetime
 
 bp = Blueprint('main', __name__)
 
+
+def _get_playback_song():
+    """Song used for the public game: forced folder (dev) or DB is_active."""
+    forced = current_app.config.get('FORCED_PLAYBACK_BASE_FILENAME')
+    if forced:
+        name = str(forced).strip()
+        if name:
+            song = Song.query.filter_by(base_filename=name).first()
+            if song:
+                return song
+    return Song.query.filter_by(is_active=True).first()
+
+
 @bp.route('/')
 def index():
     """Main game page"""
-    # Get current active song
-    current_song = Song.query.filter_by(is_active=True).first()
+    current_song = _get_playback_song()
     
     # Get stats for everyone
     stats = None
@@ -84,8 +96,7 @@ def submit_guess():
     song_guess = data.get('song_guess', '').strip().lower()
     difficulty_level = data.get('difficulty_level', 0)
     
-    # Get current active song
-    current_song = Song.query.filter_by(is_active=True).first()
+    current_song = _get_playback_song()
     if not current_song:
         return jsonify({'error': 'No active song'}), 400
     
@@ -127,7 +138,7 @@ def submit_guess():
 @bp.route('/current_stats')
 def current_stats():
     """Get current song statistics"""
-    current_song = Song.query.filter_by(is_active=True).first()
+    current_song = _get_playback_song()
     if not current_song:
         return jsonify({'error': 'No active song'}), 400
     
