@@ -84,4 +84,4 @@ audio/uploads/*
 # Spotify credentials
 cookies.txt
  
- python-version
+python-version
