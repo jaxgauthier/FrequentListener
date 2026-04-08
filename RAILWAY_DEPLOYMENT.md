@@ -4,6 +4,7 @@
 - **Railway account** (sign up at [railway.app](https://railway.app))
 - **GitHub account** with your code repository
 - **Domain name** (optional, Railway provides free subdomain)
+- **I am working on this rn**
 
 ## Step 1: Prepare Your Repository
 
