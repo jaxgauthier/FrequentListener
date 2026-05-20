@@ -4,18 +4,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorMessage = document.getElementById('errorMessage');
 
     function showError(message) {
+        if (!errorMessage) return;
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
         errorMessage.className = 'error-message';
     }
 
     function showSuccess(message) {
+        if (!errorMessage) return;
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
         errorMessage.className = 'success-message';
     }
 
     function hideMessage() {
+        if (!errorMessage) return;
         errorMessage.style.display = 'none';
     }
 
@@ -101,15 +104,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify(data)
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess(data.message);
-                    setTimeout(() => {
+            .then(async function(response) {
+                const payload = await response.json();
+                if (response.ok && payload.success) {
+                    showSuccess(payload.message || 'Account created');
+                    setTimeout(function() {
                         window.location.href = '/';
                     }, 1000);
                 } else {
-                    showError(data.error || 'Signup failed');
+                    showError(payload.error || 'Signup failed');
                 }
             })
             .catch(error => {

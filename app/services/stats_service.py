@@ -2,7 +2,7 @@
 Statistics service for managing user and song analytics
 """
 
-from app.models import UserStats, SongStats, Song
+from app.models import UserStats, SongStats, Song, UserPlayerState
 from app import db
 from datetime import datetime
 import json
@@ -44,7 +44,7 @@ class StatsService:
             
             for stat in all_user_stats:
                 if stat.correct_guess:
-                    score = max(0, 7 - stat.difficulty_level)
+                    score = max(0, 8 - stat.difficulty_level)
                     points_distribution[score] = points_distribution.get(score, 0) + 1
             
             # Calculate max count for bar chart scaling
@@ -70,27 +70,50 @@ class StatsService:
             }
     
     @staticmethod
-    def update_user_stats(user_id, song_id, final_score, is_correct, difficulty_level):
-        """Update user statistics for a song"""
+    def update_user_stats(
+        user_id,
+        song_id,
+        final_score,
+        is_correct,
+        difficulty_level,
+        max_difficulty_level=None,
+    ):
+        """
+        Update user statistics for a song.
+
+        A round ends when the user guesses correctly or submits a wrong guess
+        at the highest revealed difficulty (all tiers exhausted).
+        """
         try:
-            # Check if user has already played this song
+            if max_difficulty_level is None:
+                from app.services.audio_service import AudioService
+                from app.models import Song
+
+                song = Song.query.get(song_id)
+                if song:
+                    available = AudioService.get_available_frequencies(song.base_filename)
+                    max_difficulty_level = max(0, len(available) - 1) if available else 7
+                else:
+                    max_difficulty_level = 7
+
+            round_complete = is_correct or int(difficulty_level) >= int(max_difficulty_level)
+
             existing_stat = UserStats.query.filter_by(
-                user_id=user_id, 
-                song_id=song_id
+                user_id=user_id,
+                song_id=song_id,
             ).first()
-            
+
             if existing_stat and existing_stat.has_played:
-                return False  # User has already played
-            
+                return False
+
             if existing_stat:
-                # Update existing stat
                 existing_stat.guess_count += 1
                 existing_stat.correct_guess = is_correct
                 existing_stat.difficulty_level = difficulty_level
                 existing_stat.guessed_at = datetime.utcnow()
-                existing_stat.has_played = True
+                if round_complete:
+                    existing_stat.has_played = True
             else:
-                # Create new stat
                 new_stat = UserStats(
                     user_id=user_id,
                     song_id=song_id,
@@ -98,17 +121,17 @@ class StatsService:
                     correct_guess=is_correct,
                     difficulty_level=difficulty_level,
                     guessed_at=datetime.utcnow(),
-                    has_played=True
+                    has_played=round_complete,
                 )
                 db.session.add(new_stat)
-            
+
             db.session.commit()
-            
-            # Update global song stats
-            StatsService.update_song_stats(song_id, final_score, is_correct)
-            
+
+            if round_complete:
+                StatsService.update_song_stats(song_id, final_score, is_correct)
+
             return True
-            
+
         except Exception as e:
             db.session.rollback()
             print(f"Error updating user stats: {e}")
@@ -161,8 +184,14 @@ class StatsService:
             traceback.print_exc()
     
     @staticmethod
+    def reset_has_played_for_song(song_id: int) -> None:
+        """Allow users to play again when this song becomes the active song of the day."""
+        UserStats.query.filter_by(song_id=song_id).update({UserStats.has_played: False})
+        UserPlayerState.query.filter_by(song_id=song_id).delete()
+
+    @staticmethod
     def reset_has_played_for_all_users():
-        """Reset has_played flag for all users when active song changes"""
+        """Deprecated: prefer reset_has_played_for_song for a single active song."""
         try:
             UserStats.query.update({UserStats.has_played: False})
             db.session.commit()

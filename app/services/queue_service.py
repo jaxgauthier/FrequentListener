@@ -63,31 +63,34 @@ class QueueService:
         db.session.commit()
     
     @staticmethod
-    def activate_todays_song():
-        """Activate today's song and deactivate others"""
-        today = date.today()
-        
-        # Deactivate all currently active songs
-        Song.query.update({'is_active': False})
-        
-        # Get today's queue entry
+    def activate_song_for_date(target_date: date | None = None):
+        """Activate the queued song for a given calendar day (default: today)."""
+        if target_date is None:
+            target_date = date.today()
+
+        Song.query.update({Song.is_active: False})
+
         queue_entry = SongQueue.query.filter_by(
-            scheduled_date=today,
-            status='queued'
+            scheduled_date=target_date,
+            status='queued',
         ).first()
-        
+
         if queue_entry:
-            # Activate the song
+            from app.services.stats_service import StatsService
+
             queue_entry.song.is_active = True
             queue_entry.status = 'active'
-            
-            # Add to song history
+            StatsService.reset_has_played_for_song(queue_entry.song.id)
             SongHistory.add_to_history(queue_entry.song)
-            
             db.session.commit()
             return queue_entry.song
-        
+
         return None
+
+    @staticmethod
+    def activate_todays_song():
+        """Activate today's song and deactivate others"""
+        return QueueService.activate_song_for_date(date.today())
     
     @staticmethod
     def cleanup_expired_songs():

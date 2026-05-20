@@ -1,36 +1,59 @@
-// Progressive Difficulty Audio Game JavaScript
+// Fouriele player — game logic + circular UI
 document.addEventListener('DOMContentLoaded', function() {
-    // Dropdown functionality
-    window.toggleDropdown = function() {
-        const dropdown = document.getElementById('dropdownMenu');
-        dropdown.classList.toggle('show');
+    const MAX_SCORE = window.maxScore || 8;
+
+    const TIER_LABELS = {
+        '500': 'Hardest (500 Hz)',
+        '1000': 'Very hard (1000 Hz)',
+        '1500': 'Hard (1500 Hz)',
+        '2000': 'Medium-hard (2000 Hz)',
+        '2500': 'Medium (2500 Hz)',
+        '3500': 'Medium-easy (3500 Hz)',
+        '5000': 'Easy (5000 Hz)',
+        '7500': 'Easiest (7500 Hz)',
     };
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(event) {
-        const dropdown = document.getElementById('dropdownMenu');
-        const logoBtn = document.querySelector('.logo-btn');
-        
-        if (!logoBtn.contains(event.target) && !dropdown.contains(event.target)) {
-            dropdown.classList.remove('show');
+    // User menu dropdown
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userMenuDropdown = document.getElementById('userMenuDropdown');
+    if (userMenuBtn && userMenuDropdown) {
+        userMenuBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const open = !userMenuDropdown.classList.contains('hidden');
+            userMenuDropdown.classList.toggle('hidden', open);
+            userMenuBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        });
+        document.addEventListener('click', function() {
+            userMenuDropdown.classList.add('hidden');
+            userMenuBtn.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function showGuestNotice(message) {
+        if (window.isLoggedIn) return;
+        const banner = document.getElementById('guestBanner');
+        if (!banner) return;
+        const textEl = banner.querySelector('.guest-banner-text');
+        if (message && textEl) {
+            textEl.textContent = message + ' ';
         }
-    });
+        banner.classList.remove('hidden');
+    }
 
     // Get DOM elements
     const guessForm = document.getElementById('guessForm');
+    if (!guessForm) return;
+
     const songGuessInput = document.getElementById('songGuess');
     const searchSuggestions = document.getElementById('searchSuggestions');
     const resultsSection = document.getElementById('resultsSection');
     const resultMessage = document.getElementById('resultMessage');
     const correctAnswer = document.getElementById('correctAnswer');
     
-    console.log('DOM loaded, form found:', guessForm);
-    
     // Track current difficulty level (0 = first frequency, 1 = second, etc.)
     let currentDifficulty = 0;
     let frequencies = [];
     
-    // Get available frequencies from the DOM
     function getAvailableFrequencies() {
         const audioPlayers = document.querySelectorAll('.audio-player');
         frequencies = [];
@@ -38,16 +61,130 @@ document.addEventListener('DOMContentLoaded', function() {
             const freq = player.id.replace('audio-', '');
             frequencies.push(freq);
         });
-        console.log('Available frequencies:', frequencies);
+        frequencies.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    function getActiveAudio() {
+        if (!frequencies.length) return null;
+        const freq = frequencies[Math.min(currentDifficulty, frequencies.length - 1)];
+        return document.getElementById('audio-el-' + freq);
+    }
+
+    function buildRingPath(ringIndex) {
+        const baseRadius = 40 + ringIndex * 18;
+        const waveCount = 4 + ringIndex;
+        const amplitude = 8 + ringIndex * 2;
+        const rotation = ringIndex * 15;
+        const points = [];
+        for (let i = 0; i <= 100; i++) {
+            const angle = (i / 100) * Math.PI * 2;
+            const wave = Math.sin(angle * waveCount + rotation * 0.1) * amplitude;
+            const r = baseRadius + wave;
+            const x = 150 + r * Math.cos(angle);
+            const y = 150 + r * Math.sin(angle);
+            points.push(x + ',' + y);
+        }
+        return 'M ' + points[0] + ' L ' + points.slice(1).join(' L ') + ' Z';
+    }
+
+    function updateFrequencyRings() {
+        const group = document.getElementById('frequencyRingsGroup');
+        if (!group) return;
+        group.innerHTML = '';
+        const ringCount = Math.min(currentDifficulty + 1, MAX_SCORE);
+        for (let i = 0; i < ringCount; i++) {
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', buildRingPath(i));
+            path.setAttribute('class', 'ring-path');
+            path.setAttribute('stroke', 'url(#ring-gradient-' + ((i % 3) + 1) + ')');
+            path.style.animationDuration = (20 + i * 5) + 's';
+            group.appendChild(path);
+        }
+    }
+
+    function updateTierLabel() {
+        const el = document.getElementById('tierLabel');
+        if (!el || !frequencies.length) return;
+        const freq = frequencies[Math.min(currentDifficulty, frequencies.length - 1)];
+        el.textContent = TIER_LABELS[freq] || freq + ' Hz';
+    }
+
+    function updateRevealButton() {
+        const btn = document.getElementById('revealBtn');
+        if (!btn) return;
+        const atMax = currentDifficulty >= frequencies.length - 1;
+        btn.disabled = atMax;
+        btn.style.visibility = atMax ? 'hidden' : 'visible';
+    }
+
+    function setCenterPlayState(playing) {
+        const playIcon = document.getElementById('centerPlayIcon');
+        const pauseIcon = document.getElementById('centerPauseIcon');
+        if (!playIcon || !pauseIcon) return;
+        if (playing) {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        } else {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+        }
+    }
+
+    function stopAllPlayback() {
+        document.querySelectorAll('.audio-sources audio').forEach(function(a) {
+            a.pause();
+            a.currentTime = 0;
+        });
+        setCenterPlayState(false);
+    }
+
+    function refreshPlayerUI() {
+        updateFrequencyRings();
+        updateScoreDisplay();
+        updateTierLabel();
+        updateRevealButton();
+    }
+
+    function initCenterPlayer() {
+        const centerPlayBtn = document.getElementById('centerPlayBtn');
+        if (!centerPlayBtn) return;
+
+        centerPlayBtn.addEventListener('click', function() {
+            const audio = getActiveAudio();
+            if (!audio) return;
+            document.querySelectorAll('.audio-sources audio').forEach(function(a) {
+                if (a !== audio) a.pause();
+            });
+            if (audio.paused) {
+                audio.play().catch(function(err) { console.error('Playback failed:', err); });
+            } else {
+                audio.pause();
+            }
+        });
+
+        document.querySelectorAll('.audio-sources audio').forEach(function(audio) {
+            if (audio._fourieleBound) return;
+            audio._fourieleBound = true;
+            audio.addEventListener('play', function() {
+                if (audio === getActiveAudio()) setCenterPlayState(true);
+            });
+            audio.addEventListener('pause', function() {
+                if (audio === getActiveAudio()) setCenterPlayState(false);
+            });
+            audio.addEventListener('ended', function() {
+                setCenterPlayState(false);
+            });
+        });
     }
     
     // Search functionality
     let searchTimeout;
     let selectedSuggestionIndex = -1;
     
-    // Initialize: get frequencies and show current difficulty
     getAvailableFrequencies();
     showCurrentDifficulty();
+    initCenterPlayer();
+    refreshPlayerUI();
     
     // Set initial difficulty level in hidden input
     const difficultyInput = document.getElementById('difficultyLevel');
@@ -58,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set initial score (starts at maximum for hardest difficulty)
     const scoreInput = document.getElementById('currentScore');
     if (scoreInput) {
-        const initialScore = Math.max(0, 8 - currentDifficulty);
+        const initialScore = Math.max(0, MAX_SCORE - currentDifficulty);
         scoreInput.value = initialScore;
     }
     
@@ -187,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateSelectedSuggestion(suggestions) {
         suggestions.forEach((item, index) => {
             if (index === selectedSuggestionIndex) {
-                item.style.backgroundColor = '#e3f2fd';
+                item.style.backgroundColor = 'rgba(51, 65, 85, 0.9)';
             } else {
                 item.style.backgroundColor = '';
             }
@@ -222,21 +359,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 audioPlayer.style.display = 'none';
             }
         }
+        refreshPlayerUI();
     }
 
     function revealNextDifficulty() {
+        stopAllPlayback();
         currentDifficulty++;
+        const difficultyInput = document.getElementById('difficultyLevel');
+        if (difficultyInput) {
+            difficultyInput.value = currentDifficulty;
+        }
+        const scoreInput = document.getElementById('currentScore');
+        if (scoreInput) {
+            scoreInput.value = Math.max(0, 8 - currentDifficulty);
+            updateScoreDisplay();
+        }
         if (currentDifficulty < frequencies.length) {
-            // Add a small delay for dramatic effect
             setTimeout(() => {
                 const nextAudioPlayer = document.getElementById(`audio-${frequencies[currentDifficulty]}`);
                 if (nextAudioPlayer) {
                     nextAudioPlayer.style.display = 'block';
-                    // Scroll to the new audio player
                     nextAudioPlayer.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }, 1000);
         }
+        refreshPlayerUI();
+        savePlayerState();
     }
 
     function shouldShowResults() {
@@ -263,14 +411,14 @@ document.addEventListener('DOMContentLoaded', function() {
             updateScoreDisplay();
         }
         
-        // Hide the plus button since we've shown all difficulties
-        document.querySelector('.plus-button-container').style.display = 'none';
+        updateRevealButton();
+        refreshPlayerUI();
     }
 
-    // Global function for adding next difficulty level
     window.addNextDifficulty = function() {
         console.log('Adding next difficulty level');
-        
+        stopAllPlayback();
+
         // Check if we're at the last difficulty level
         if (currentDifficulty >= frequencies.length - 1) {
             // Show results since we've gone through all frequencies
@@ -301,8 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     correctAnswer.innerHTML = '<p>Error getting answer</p>';
                 });
             
-            // Hide the plus button since we've shown all difficulties
-            document.querySelector('.plus-button-container').style.display = 'none';
+            updateRevealButton();
             return;
         }
         
@@ -321,15 +468,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (scoreInput) {
             // Score starts at 7 for hardest difficulty (0 difficulty level)
             // and decreases by 1 for each easier level revealed
-            const newScore = Math.max(0, 8 - currentDifficulty);
+            const newScore = Math.max(0, MAX_SCORE - currentDifficulty);
             scoreInput.value = newScore;
             updateScoreDisplay();
         }
-        
-        // If we've shown all difficulties, hide the plus button
-        if (currentDifficulty >= frequencies.length - 1) {
-            document.querySelector('.plus-button-container').style.display = 'none';
-        }
+        refreshPlayerUI();
     };
 
     // Helper to update the stats section dynamically
@@ -344,24 +487,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const song = data.song;
         // Update average score (global)
         const avgScoreElem = statsSection.querySelector('.average-score-value');
-        if (avgScoreElem) {
+        if (avgScoreElem && stats.song_stats) {
             avgScoreElem.textContent = stats.song_stats.average_score.toFixed(1);
         }
         // Update explanation
         const avgExpElem = statsSection.querySelector('.average-score-explanation small');
-        if (avgExpElem) {
-            avgExpElem.textContent = `Average score for ${song.title} by ${song.artist}`;
+        if (avgExpElem && song) {
+            avgExpElem.textContent = `${song.title} by ${song.artist}`;
         }
-        // Update bar graph (individual)
-        for (let score = 0; score < 8; score++) {
-            const bar = statsSection.querySelector(`.bar-group:nth-child(${score+1}) .bar`);
-            const count = statsSection.querySelector(`.bar-group:nth-child(${score+1}) .bar-count`);
-            if (bar) {
-                const pct = stats.individual_stats.max_count > 0 ? (stats.individual_stats.points_distribution[score] || 0) / stats.individual_stats.max_count * 100 : 0;
-                bar.style.height = pct + '%';
-            }
-            if (count) {
-                count.textContent = stats.individual_stats.points_distribution[score] || 0;
+        // Update bar graph (logged-in users only)
+        const pointsBlock = statsSection.querySelector('.points-distribution');
+        if (window.isLoggedIn && stats.individual_stats && pointsBlock) {
+            const dist = stats.individual_stats.points_distribution || {};
+            const maxCount = stats.individual_stats.max_count || 1;
+            for (let score = 0; score < 9; score++) {
+                const bar = statsSection.querySelector(`.bar-group:nth-child(${score + 1}) .bar`);
+                const count = statsSection.querySelector(`.bar-group:nth-child(${score + 1}) .bar-count`);
+                const val = dist[score] || dist[String(score)] || 0;
+                if (bar) {
+                    const pct = maxCount > 0 ? (val / maxCount) * 100 : 0;
+                    bar.style.height = pct + '%';
+                }
+                if (count) {
+                    count.textContent = val;
+                }
             }
         }
         // Show/hide already played message
@@ -374,8 +523,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide guess UI if already played
         if (stats.has_played_current) {
             if (guessForm) guessForm.style.display = 'none';
-            const plusBtn = document.querySelector('.plus-button-container');
-            if (plusBtn) plusBtn.style.display = 'none';
+            const revealBtn = document.getElementById('revealBtn');
+            if (revealBtn) revealBtn.style.display = 'none';
+            const playerSection = document.querySelector('.player-section');
+            if (playerSection) playerSection.style.opacity = '0.6';
         }
     }
 
@@ -399,6 +550,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     guessForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        stopAllPlayback();
         console.log('Form submitted');
         const formData = new FormData(guessForm);
         const songGuess = formData.get('song_guess');
@@ -421,12 +573,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Check if user has already played this song
         if (data.already_played) {
             resultsSection.style.display = 'block';
-            resultMessage.innerHTML = `<p style="color: orange; font-weight: bold;">${data.message}</p>`;
+            resultMessage.innerHTML = `<p style="color: orange; font-weight: bold;">${data.message || 'You already played this song.'}</p>`;
             correctAnswer.textContent = data.correct_answer;
-            
-            // Show stats section since they've already played
             await updateStatsSection();
             return;
+        }
+
+        if (data.guest && data.message) {
+            showGuestNotice(data.message);
         }
         
         if (data.correct) {
@@ -523,11 +677,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var difficultyInput = document.getElementById('difficultyLevel');
         if (difficultyInput) difficultyInput.value = freqs.length - 1;
         var scoreInput = document.getElementById('currentScore');
-        var score = Math.max(8 - (freqs.length - 1), 1);
+        var score = Math.max(MAX_SCORE - (freqs.length - 1), 0);
         if (scoreInput) scoreInput.value = score;
-        // Update score display
-        var scoreEl = document.getElementById('scoreDisplay');
-        if (scoreEl) scoreEl.textContent = score;
+        refreshPlayerUI();
     }
 
     function savePlayerState() {
@@ -586,66 +738,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Set window.currentSongId and window.isLoggedIn from template context
     // (You need to add these variables in your user.html template)
-    loadPlayerState();
-
-    // Custom audio player logic
-    document.querySelectorAll('.custom-audio-player').forEach(function(wrapper) {
-        var audioId = wrapper.getAttribute('data-audio-id');
-        var audio = document.getElementById(audioId);
-        var playBtn = wrapper.querySelector('.custom-audio-play');
-        var iconSpan = playBtn.querySelector('.custom-audio-icon');
-        var timeDisplay = wrapper.querySelector('.custom-audio-time');
-        var progress = wrapper.querySelector('.custom-audio-progress');
-        if (!audio || !playBtn || !iconSpan || !timeDisplay || !progress) return;
-
-        // SVGs for play and pause
-        var playSVG = '<svg class="icon-play" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="5,3 19,11 5,19" fill="currentColor"/></svg>';
-        var pauseSVG = '<svg class="icon-pause" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="3" width="4" height="16" fill="currentColor"/><rect x="13" y="3" width="4" height="16" fill="currentColor"/></svg>';
-
-        // Play/pause logic
-        playBtn.addEventListener('click', function() {
-            if (audio.paused) {
-                audio.play();
-            } else {
-                audio.pause();
-            }
-        });
-        audio.addEventListener('play', function() {
-            playBtn.setAttribute('data-state', 'pause');
-            iconSpan.innerHTML = pauseSVG;
-        });
-        audio.addEventListener('pause', function() {
-            playBtn.setAttribute('data-state', 'play');
-            iconSpan.innerHTML = playSVG;
-        });
-        // Time update
-        audio.addEventListener('timeupdate', function() {
-            var cur = Math.floor(audio.currentTime);
-            var dur = Math.floor(audio.duration) || 0;
-            timeDisplay.textContent = formatTime(cur) + ' / ' + formatTime(dur);
-            var percent = (audio.currentTime / (audio.duration || 1)) * 100;
-            progress.value = percent;
-        });
-        // Progress bar seeking
-        progress.addEventListener('input', function() {
-            var seekTime = (progress.value / 100) * (audio.duration || 1);
-            audio.currentTime = seekTime;
-        });
-        // Reset on end
-        audio.addEventListener('ended', function() {
-            playBtn.setAttribute('data-state', 'play');
-            iconSpan.innerHTML = playSVG;
-            progress.value = 0;
-        });
-        // Init
-        audio.addEventListener('loadedmetadata', function() {
-            var dur = Math.floor(audio.duration) || 0;
-            timeDisplay.textContent = '0:00 / ' + formatTime(dur);
-        });
-    });
-    function formatTime(sec) {
-        var m = Math.floor(sec / 60);
-        var s = Math.floor(sec % 60);
-        return m + ':' + (s < 10 ? '0' : '') + s;
+    if (document.querySelector('.audio-sources')) {
+        loadPlayerState();
     }
 }); 

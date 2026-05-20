@@ -3,31 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - Frequent Listener</title>
+    <title>Sign Up — Fouriele</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
-<body>
+<body class="auth-page">
     <div class="auth-container">
-        <h1>Sign Up</h1>
-        {% if error %}
-        <div class="error-message">{{ error }}</div>
-        {% endif %}
-        <form method="POST">
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+        <a href="{{ url_for('main.index') }}" class="auth-back">← Back to game</a>
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Fouriele</h1>
+                <p>Create an account to save scores and track stats</p>
             </div>
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
+
+            <form id="signupForm" class="auth-form" method="POST" novalidate>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required autocomplete="username" placeholder="letters, numbers, underscore">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required autocomplete="new-password" minlength="6" placeholder="at least 6 characters">
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn btn-primary">Create account</button>
+            </form>
+
+            <div class="auth-footer">
+                <p>Already have an account? <a href="{{ url_for('main.login') }}">Sign in</a></p>
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+
+            <div id="errorMessage" class="error-message" style="display: none;" role="alert">
+                {% if error %}{{ error }}{% endif %}
             </div>
-            <button type="submit" class="btn btn-primary">Sign Up</button>
-        </form>
-        <p>Already have an account? <a href="{{ url_for('main.login') }}">Login</a></p>
+        </div>
     </div>
+    <script>
+        {% if error %}document.getElementById('errorMessage').style.display = 'block';{% endif %}
+    </script>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
-</html> 
+</html>

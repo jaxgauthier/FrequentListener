@@ -224,9 +224,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const progressDetails = document.getElementById('progressDetails');
         
         progressSection.style.display = 'block';
-        progressBar.style.width = '0%';
-        progressText.textContent = 'Starting download...';
-        progressDetails.textContent = `Downloading "${track.name}" by ${track.artist} from YouTube...`;
+        progressBar.style.width = '100%';
+        progressBar.classList.add('progress-indeterminate');
+        progressBar.style.background = '';
+        progressText.textContent = 'Processing song...';
+        progressDetails.textContent =
+            `Downloading and generating frequencies for "${track.name}" by ${track.artist}. This may take a minute.`;
         
         // Disable the process button (Spotify flow uses #processSongBtn, not per-track onclick buttons)
         const processBtn = document.getElementById('processSongBtn');
@@ -234,40 +237,6 @@ document.addEventListener('DOMContentLoaded', function() {
             processBtn.disabled = true;
             processBtn.textContent = 'Processing...';
         }
-        
-        // Simulate progress updates
-        let progress = 0;
-        const frequencies = [500, 1000, 1500, 2000, 2500, 3500, 5000, 7500];
-        let currentFreqIndex = 0;
-        
-        const progressInterval = setInterval(() => {
-            progress += Math.random() * 12;
-            if (progress > 90) progress = 90; // Cap at 90% until completion
-            progressBar.style.width = progress + '%';
-            
-            if (progress < 20) {
-                progressText.textContent = 'Downloading audio...';
-                progressDetails.textContent = 'Fetching audio from YouTube...';
-            } else if (progress < 40) {
-                progressText.textContent = 'Extracting segment...';
-                progressDetails.textContent = `Extracting ${startTime}s - ${endTime}s segment...`;
-            } else if (progress < 90) {
-                // Show which frequency is being generated
-                if (currentFreqIndex < frequencies.length) {
-                    const currentFreq = frequencies[currentFreqIndex];
-                    progressText.textContent = `Generating ${currentFreq} frequencies...`;
-                    progressDetails.textContent = `Processing frequency reconstruction (${currentFreqIndex + 1}/${frequencies.length})`;
-                    
-                    // Move to next frequency every few seconds
-                    if (progress > 40 + (currentFreqIndex * 7)) {
-                        currentFreqIndex++;
-                    }
-                } else {
-                    progressText.textContent = 'Finalizing...';
-                    progressDetails.textContent = 'Completing frequency reconstructions...';
-                }
-            }
-        }, 1000);
         
         fetch('/admin/process_spotify_song', {
             method: 'POST',
@@ -286,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            clearInterval(progressInterval);
+            progressBar.classList.remove('progress-indeterminate');
             
             if (data.success) {
                 progressBar.style.width = '100%';
@@ -315,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            clearInterval(progressInterval);
+            progressBar.classList.remove('progress-indeterminate');
             progressText.textContent = 'Error!';
             progressDetails.textContent = 'Network error occurred';
             progressBar.style.background = '#dc3545';
@@ -331,10 +300,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function playSong(filename) {
-    // Play audio file
-    const audio = new Audio('/play_frequency/' + filename);
-    audio.play();
+function playSong(baseFilename, frequency) {
+    const audio = new Audio('/play_frequency/' + encodeURIComponent(baseFilename) + '/' + frequency);
+    audio.play().catch(err => console.error('Playback failed:', err));
 }
 
 function viewFrequencies(songName) {

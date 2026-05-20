@@ -14,6 +14,7 @@ from pydub import AudioSegment
 import yt_dlp
 import glob
 from flask import current_app
+from app.utils.audio_paths import resolve_output_folder
 
 class AudioService:
     """Service for audio processing and management"""
@@ -21,22 +22,13 @@ class AudioService:
     @staticmethod
     def get_available_frequencies(song_name):
         """Get available frequency levels for a song"""
-        song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], song_name)
-        
-        if not os.path.exists(song_folder):
-            # Fallback to old mapping system
-            song_folders = {
-                'MrBrightside': 'MrBrighstide',
-                'GhostTown': 'GhostTown',
-                'Milan': 'Milan',
-                'TeenageDirtbag': 'TeenageDirtbag'
-            }
-            
-            folder_name = song_folders.get(song_name)
-            if not folder_name:
-                return []
-            song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], folder_name)
-        
+        folder = resolve_output_folder(
+            song_name, current_app.config['AUDIO_OUTPUT_FOLDER']
+        )
+        if folder is None:
+            return []
+
+        song_folder = str(folder)
         available_frequencies = []
         if os.path.exists(song_folder):
             for file in os.listdir(song_folder):
@@ -69,13 +61,12 @@ class AudioService:
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                search_results = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
+                # Download in one step; search metadata alone often lacks a direct media URL.
+                search_results = ydl.extract_info(
+                    f"ytsearch1:{search_query}", download=True
+                )
                 if not search_results or 'entries' not in search_results or not search_results['entries']:
                     raise Exception(f"No YouTube videos found for: {search_query}")
-                
-                video_info = search_results['entries'][0]
-                video_url = video_info['url']
-                ydl.download([video_url])
             
             # Find downloaded file
             downloaded_files = glob.glob(temp_audio_path_base + ".*")
@@ -143,9 +134,15 @@ class AudioService:
             song_output_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], output_folder)
             os.makedirs(song_output_folder, exist_ok=True)
             
+            n_available = len(available_indices)
+            if n_available == 0:
+                raise ValueError('No significant frequencies found in audio clip')
+
             for freq_count in frequency_counts:
-                # Get top frequencies
-                top_indices = available_indices[np.argsort(magnitude[available_indices])[-freq_count:][::-1]]
+                take = min(freq_count, n_available)
+                top_indices = available_indices[
+                    np.argsort(magnitude[available_indices])[-take:][::-1]
+                ]
                 top_freqs = freq[top_indices]
                 top_magnitudes = magnitude[top_indices]
                 

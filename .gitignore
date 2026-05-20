@@ -49,8 +49,9 @@ Thumbs.db
 instance/
 .webassets-cache
 
-# Database (keep for development, but Railway will use its own)
-# game.db
+# Database — local SQLite only (production uses Postgres)
+data/
+*.db
 
 # Temporary files
 *.tmp

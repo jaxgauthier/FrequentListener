@@ -23,21 +23,11 @@ def migrate_database():
         db.create_all()
         print("Database tables created successfully!")
         
-        # Check if admin user exists
-        from app.models import AdminUser
-        admin_user = AdminUser.query.filter_by(username='admin').first()
-        if not admin_user:
-            print("Creating admin user...")
-            admin_user = AdminUser(
-                username='admin',
-                email='admin@example.com'
-            )
-            admin_user.set_password('MadJax195')
-            db.session.add(admin_user)
-            db.session.commit()
-            print("Admin user created successfully!")
-        else:
-            print("Admin user already exists.")
+        from app.utils.dev_seed import ensure_admin_user
+
+        ensure_admin_user()
+        db.session.commit()
+        print("Admin user ready (password from ADMIN_PASSWORD in .env)")
 
 if __name__ == '__main__':
     migrate_database() 

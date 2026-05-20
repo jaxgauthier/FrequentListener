@@ -3,179 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Frequency Game</title>
+    <title>Fouriele — Frequent Listener</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
 </head>
-<body>
-    <div class="page-container">
-        <!-- Simple Logo Navigation -->
-        <nav class="logo-nav">
-            <div class="logo-container">
-                <button class="logo-btn" onclick="toggleDropdown()">
-                    <span class="logo-icon">👤</span>
+<body class="fouriele-game">
+    <!-- Animated sine-wave background (paths drawn by waves-bg.js) -->
+    <div class="wave-background" aria-hidden="true">
+        <svg class="wave-svg" preserveAspectRatio="none" viewBox="0 0 1200 800"></svg>
+    </div>
+
+    <div class="game-shell">
+        <nav class="game-nav">
+            {% if current_user.is_authenticated %}
+            <div class="user-menu">
+                <button type="button" class="user-menu-btn" id="userMenuBtn" aria-expanded="false" aria-haspopup="true">
+                    {{ current_user.username }}
+                    <span class="user-menu-chevron" aria-hidden="true">▾</span>
                 </button>
-                <div class="dropdown-menu" id="dropdownMenu">
-                    {% if current_user.is_authenticated %}
-                        <div class="dropdown-header">
-                            <span class="user-avatar">👤</span>
-                            <span class="username">{{ current_user.username }}</span>
-                        </div>
-                        <div class="dropdown-divider"></div>
-                        <a href="{{ url_for('main.profile') }}" class="dropdown-item">Profile</a>
-                        <a href="{{ url_for('main.song_history') }}" class="dropdown-item">Song History</a>
-                        <a href="{{ url_for('main.logout') }}" class="dropdown-item">Logout</a>
-                    {% else %}
-                        <a href="{{ url_for('main.login') }}" class="dropdown-item">Login</a>
-                        <a href="{{ url_for('main.signup') }}" class="dropdown-item">Sign Up</a>
-                        <div class="dropdown-divider"></div>
-                        <a href="{{ url_for('main.song_history') }}" class="dropdown-item">Song History</a>
-                    {% endif %}
+                <div class="user-menu-dropdown hidden" id="userMenuDropdown">
+                    <a href="{{ url_for('main.profile') }}">Profile</a>
+                    <a href="{{ url_for('main.logout') }}">Logout</a>
                 </div>
             </div>
+            {% else %}
+            <div class="nav-auth">
+                <a href="{{ url_for('main.login') }}" class="nav-link">Login</a>
+                <a href="{{ url_for('main.signup') }}" class="nav-link nav-link-accent">Sign up</a>
+            </div>
+            {% endif %}
         </nav>
 
-        <!-- Game Title -->
-        <div class="game-title">
-            <h1>🎵 Frequent Listener</h1>
-        </div>
+        <header class="game-header">
+            <h1 class="game-title">Fouriele</h1>
+            {% if current_song %}
+            <p class="game-subtitle">Guess today&rsquo;s track</p>
+            {% else %}
+            <p class="game-subtitle">No active song — check back soon</p>
+            {% endif %}
+        </header>
 
-        <!-- Rules Section -->
-        <section class="how-to-play-simple">
-            <h2>How to Play</h2>
-            <p class="rules-paragraph">
-                Start with the hardest version (500 frequencies) and click the <b>+</b> button to reveal easier versions. 
-                Submit your guess at any time - your score starts at 8 and drops by 1 for each easier version you reveal.
-            </p>
-        </section>
+        {% if current_song and current_song.available_frequencies %}
+        <section class="player-section">
+            <!-- Circular player -->
+            <div class="player-stage" id="playerStage">
+                <svg class="frequency-rings" id="frequencyRings" viewBox="0 0 300 300" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="ring-gradient-1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6b7280" stop-opacity="0.8"/>
+                            <stop offset="50%" stop-color="#9ca3af" stop-opacity="0.6"/>
+                            <stop offset="100%" stop-color="#4b5563" stop-opacity="0.8"/>
+                        </linearGradient>
+                        <linearGradient id="ring-gradient-2" x1="100%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#9ca3af" stop-opacity="0.7"/>
+                            <stop offset="50%" stop-color="#6b7280" stop-opacity="0.5"/>
+                            <stop offset="100%" stop-color="#8b92a0" stop-opacity="0.7"/>
+                        </linearGradient>
+                        <linearGradient id="ring-gradient-3" x1="0%" y1="100%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#4b5563" stop-opacity="0.6"/>
+                            <stop offset="50%" stop-color="#7c8394" stop-opacity="0.4"/>
+                            <stop offset="100%" stop-color="#9ca3af" stop-opacity="0.6"/>
+                        </linearGradient>
+                    </defs>
+                    <g id="frequencyRingsGroup"></g>
+                </svg>
 
-        <!-- Audio Players -->
-        <section class="audio-section">
-            <h3>Listen to the Reconstructed Audio</h3>
-            
-            <!-- Score Display -->
-            <div class="score-display-above" id="floatingScore">
-                <span class="score-label-above">Current Score:</span>
-                <span class="score-value-above" id="scoreDisplay">8</span>
-            </div>
-            
-            <div class="audio-players">
-                {% if current_song and current_song.available_frequencies %}
-                {% set difficulty_labels = {
-                    '500': 'Hardest',
-                    '1000': 'Very Hard', 
-                    '1500': 'Hard',
-                    '2000': 'Medium-Hard',
-                    '2500': 'Medium',
-                    '3500': 'Medium-Easy',
-                    '5000': 'Easy',
-                    '7500': 'Easiest'
-                } %}
-                
-                {% for freq in current_song.available_frequencies %}
-                <div class="audio-player" id="audio-{{ freq }}" {% if loop.index > 1 %}style="display: none;"{% endif %}>
-                    <h4>{{ freq }} Frequencies ({{ difficulty_labels.get(freq, 'Unknown') }})</h4>
-                    <div class="custom-audio-player" data-audio-id="audio-el-{{ freq }}">
-                        <button class="custom-audio-play" data-state="play">
-                            <span class="custom-audio-icon">
-                                <!-- Play SVG -->
-                                <svg class="icon-play" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <polygon points="5,3 19,11 5,19" fill="currentColor"/>
-                                </svg>
-                            </span>
+                <div class="player-center">
+                    <div class="player-center-disc">
+                        <button type="button" class="center-play-btn" id="centerPlayBtn" aria-label="Play audio">
+                            <svg class="icon-play" id="centerPlayIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <polygon points="8,5 19,12 8,19"/>
+                            </svg>
+                            <svg class="icon-pause hidden" id="centerPauseIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>
+                            </svg>
                         </button>
-                        <span class="custom-audio-time">0:00 / 0:00</span>
-                        <input type="range" class="custom-audio-progress" value="0" min="0" max="100" step="1">
                     </div>
-                    <audio id="audio-el-{{ freq }}" style="display:none">
-                        <source src="{{ url_for('main.play_frequency_audio', song_name=current_song.base_filename, frequency=freq) }}" type="audio/wav">
-                        Your browser does not support the audio element.
-                    </audio>
                 </div>
-                {% endfor %}
-                {% else %}
-                <div class="no-audio">
-                    <p>No frequency versions available for this song.</p>
+            </div>
+
+            <div class="player-meta">
+                <p class="tier-label" id="tierLabel">Hardest clip</p>
+                <div class="score-badge" aria-label="Current score">
+                    <span id="scoreDisplay">8</span><span class="score-divider">/</span><span class="score-max">8</span>
                 </div>
-                {% endif %}
             </div>
-            
-            <!-- Plus Button for Next Difficulty -->
-            <div class="plus-button-container">
-                <button type="button" class="btn btn-primary plus-btn-large" onclick="addNextDifficulty()">+</button>
-            </div>
+
+            <button type="button" class="btn-reveal" id="revealBtn" onclick="addNextDifficulty()">
+                Reveal clearer audio
+            </button>
         </section>
 
-        <!-- Guess Section -->
+        <!-- Guess -->
         <section class="guess-section">
-            <h3>Make Your Guess</h3>
             <form id="guessForm" class="guess-form">
                 <input type="hidden" id="difficultyLevel" name="difficulty_level" value="0">
                 <input type="hidden" id="currentScore" name="current_score" value="8">
-                <div class="form-group">
-                    <label for="songGuess">Song Title:</label>
-                    <div class="search-container">
-                        <input type="text" id="songGuess" name="song_guess" required placeholder="Start typing to search songs...">
-                        <div id="searchSuggestions" class="search-suggestions"></div>
-                    </div>
+                <div class="search-container">
+                    <input
+                        type="text"
+                        id="songGuess"
+                        name="song_guess"
+                        required
+                        placeholder="Enter your guess..."
+                        autocomplete="off"
+                    >
+                    <div id="searchSuggestions" class="search-suggestions"></div>
                 </div>
-                <button type="submit" class="btn btn-primary">Submit Guess</button>
+                <button type="submit" class="btn-submit">Submit Guess</button>
             </form>
+
+            {% if not current_user.is_authenticated %}
+            <p id="guestBanner" class="guest-banner">
+                <span class="guest-banner-text">Guest mode.</span>
+                <a href="{{ url_for('main.login') }}">Log in</a> · <a href="{{ url_for('main.signup') }}">Sign up</a>
+            </p>
+            {% endif %}
         </section>
 
-        <!-- Results Section -->
         <section id="resultsSection" class="results-section" style="display: none;">
-            <h3>Results</h3>
-            <div id="resultMessage"></div>
+            <div id="resultMessage" class="result-message"></div>
             <div id="correctAnswer" class="correct-answer"></div>
         </section>
 
-        <!-- Stats Section (show for everyone) -->
+        <p class="game-hint">
+            Listen and guess the track. Each wrong guess or clearer reveal lowers your score.
+        </p>
+
+        <!-- Hidden audio sources (JS hooks) -->
+        <div class="audio-sources" aria-hidden="true">
+            {% for freq in current_song.available_frequencies %}
+            <div class="audio-player" id="audio-{{ freq }}" data-freq="{{ freq }}" {% if loop.index > 1 %}style="display: none;"{% endif %}>
+                <audio id="audio-el-{{ freq }}" preload="metadata">
+                    <source src="{{ url_for('main.play_frequency_audio', song_name=current_song.base_filename, frequency=freq) }}" type="audio/wav">
+                </audio>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <section class="no-song">
+            <p>No playable audio for the active song. Ask an admin to set a song with frequency files.</p>
+        </section>
+        {% endif %}
+
         <section class="user-stats-section" style="display: none;">
-            <h3>Current Song Stats</h3>
-            
-            <!-- Check if user has already played this song (only for logged in users) -->
-            {% if current_user.is_authenticated and stats and stats.has_played_current %}
-            <div class="already-played-message">
+            <h3 class="stats-heading">Today&rsquo;s stats</h3>
+            {% if current_user.is_authenticated %}
+            <div class="already-played-message" style="display: none;">
                 <p>You have already played this song. Wait for the next song to be active.</p>
             </div>
             {% endif %}
-            
-            <!-- Average Score for Current Song (global stats) -->
-            {% if stats and stats.song_stats %}
-            <div class="average-score-card">
-                <div class="average-score-info">
-                    <span class="average-score-label">Average Score:</span>
-                    <span class="average-score-value">{{ "%.1f"|format(stats.song_stats.average_score) }}</span>
-                </div>
-                <div class="average-score-explanation">
-                    <small>Average score for {{ current_song.title }} by {{ current_song.artist }}</small>
-                </div>
-                {% if not current_user.is_authenticated %}
-                <div class="guest-message">
-                    <small><a href="{{ url_for('main.login') }}" style="color: #667eea;">Sign in</a> to track your personal stats!</small>
-                </div>
-                {% endif %}
+            <div class="average-score-card average-score-explanation">
+                <span class="average-score-label">Community average</span>
+                <span class="average-score-value">{% if stats and stats.song_stats %}{{ "%.1f"|format(stats.song_stats.average_score) }}{% else %}—{% endif %}</span>
+                <small>{% if current_song %}{{ current_song.title }} by {{ current_song.artist }}{% endif %}</small>
             </div>
-            {% endif %}
-            
-            <!-- Points Distribution Bar Graph (only for logged in users) -->
-            {% if current_user.is_authenticated and stats and stats.individual_stats %}
+            {% if not current_user.is_authenticated %}
+            <p class="guest-stats-note">Sign in to see your personal score distribution.</p>
+            {% else %}
             <div class="points-distribution">
-                <h4>Your All-Time Score Distribution</h4>
+                <h4>Your score distribution</h4>
                 <div class="bar-graph">
                     {% for score in range(9) %}
                     <div class="bar-group">
                         <div class="bar-label">{{ score }}</div>
                         <div class="bar-container">
-                            <div class="bar" style="height: {{ (stats.individual_stats.points_distribution.get(score, 0) / stats.individual_stats.max_count * 100) if stats.individual_stats.max_count > 0 else 0 }}%"></div>
+                            <div class="bar" style="height: {% if stats and stats.individual_stats and stats.individual_stats.max_count > 0 %}{{ (stats.individual_stats.points_distribution.get(score, 0) / stats.individual_stats.max_count * 100) }}{% else %}0{% endif %}%"></div>
                         </div>
-                        <div class="bar-count">{{ stats.individual_stats.points_distribution.get(score, 0) }}</div>
+                        <div class="bar-count">{% if stats and stats.individual_stats %}{{ stats.individual_stats.points_distribution.get(score, 0) }}{% else %}0{% endif %}</div>
                     </div>
                     {% endfor %}
-                </div>
-                <div class="graph-explanation">
-                    <small>Your all-time score distribution across all songs</small>
                 </div>
             </div>
             {% endif %}
@@ -183,9 +181,11 @@
     </div>
 
     <script>
-        window.currentSongId = {{ current_song.id if current_song else 'null' }}; 
+        window.currentSongId = {{ current_song.id if current_song else 'null' }};
         window.isLoggedIn = {{ 'true' if current_user.is_authenticated else 'false' }};
+        window.maxScore = 8;
     </script>
+    <script src="{{ url_for('static', filename='js/waves-bg.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user.js') }}"></script>
 </body>
-</html> 
+</html>

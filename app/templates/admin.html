@@ -128,7 +128,7 @@
                     <div class="song-item">
                         <div class="song-info">
                             <h4>{{ song.title }} - {{ song.artist }}</h4>
-                            <p>Week {{ song.week }} | Uploaded: {{ song.upload_date }}</p>
+                            <p>Week {{ song.week }} | Added: {{ song.created_at.strftime('%Y-%m-%d') if song.created_at else '—' }}</p>
                             {% if song.is_active %}
                             <span class="status-badge status-success">Active</span>
                             {% else %}
@@ -147,8 +147,8 @@
                             {% if song.has_frequency_versions %}
                             <button class="btn btn-small btn-success" onclick="viewFrequencies('{{ song.base_filename }}')">View Frequencies</button>
                             {% endif %}
-                            {% if song.filename %}
-                            <button class="btn btn-small" onclick="playSong('{{ song.filename }}')">Play Original</button>
+                            {% if song.available_frequencies %}
+                            <button class="btn btn-small" onclick="playSong('{{ song.base_filename }}', '{{ song.available_frequencies[0] }}')">Play Preview</button>
                             {% endif %}
                             <button class="btn btn-small btn-danger" onclick="deleteSong('{{ song.id }}')">Delete</button>
                         </div>

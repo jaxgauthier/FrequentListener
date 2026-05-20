@@ -4,6 +4,7 @@ Does not replace an active song that already has WAVs on disk (even partial tier
 When picking a default, prefers your downloaded DB songs over DemoSong.
 """
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -15,23 +16,27 @@ from app.models import Song
 from app.models.user import AdminUser
 
 DEFAULT_ADMIN_USERNAME = 'admin'
-DEFAULT_ADMIN_PASSWORD = 'MadJax195'
+
+
+def get_admin_password() -> str:
+    """Read at runtime so .env is loaded before use."""
+    return os.environ.get('ADMIN_PASSWORD', 'changeme-dev-only')
 DEMO_SONG_BASE = 'DemoSong'
 
 _PREFERRED_OUTPUT_FOLDERS = [
-    'Milan',
-    'GhostTown',
-    'MrBrightside',
-    'MrBrighstide',
-    'TeenageDirtbag',
+    'Lit_MyOwnWorstEnemy',
+    'TheKillers_MrBrightside',
+    'FallOutBoy_SugarWereGoinDown',
+    'blink-182_AllTheSmallThings',
 ]
 
 _FOLDER_SONG_INFO = {
-    'Milan': ('Milan', 'Unknown Artist'),
-    'GhostTown': ('Ghost Town', 'Unknown Artist'),
+    'Lit_MyOwnWorstEnemy': ('My Own Worst Enemy', 'Lit'),
+    'TheKillers_MrBrightside': ('Mr. Brightside', 'The Killers'),
     'MrBrightside': ('Mr. Brightside', 'The Killers'),
     'MrBrighstide': ('Mr. Brightside', 'The Killers'),
-    'TeenageDirtbag': ('Teenage Dirtbag', 'Wheatus'),
+    'FallOutBoy_SugarWereGoinDown': ('Sugar, We\'re Goin Down', 'Fall Out Boy'),
+    'blink-182_AllTheSmallThings': ('All the Small Things', 'blink-182'),
     'DemoSong': ('Demo Track', 'Demo Artist'),
 }
 
@@ -44,7 +49,7 @@ def ensure_admin_user() -> None:
             email='admin@example.com',
         )
         db.session.add(admin)
-    admin.set_password(DEFAULT_ADMIN_PASSWORD)
+    admin.set_password(get_admin_password())
 
 
 def _song_has_playable_files(song: Song) -> bool:

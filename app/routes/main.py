@@ -7,9 +7,14 @@ from flask_login import current_user, login_required, logout_user, login_user
 from app.models import Song, UserStats, SongStats, User, SongHistory, UserPlayerState
 from app.services import StatsService, AudioService
 from app.services.queue_service import QueueService
+from app.services.spotify_service import SpotifyService
+from app.utils.auth import admin_required
+from app.utils.song_cleanup import delete_song_related_rows
+from app import db
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from sqlalchemy import func
 
 bp = Blueprint('main', __name__)
 
@@ -64,22 +69,15 @@ def index():
 def play_frequency_audio(song_name, frequency):
     """Serve frequency-specific audio files"""
     try:
-        song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], song_name)
-        
-        if not os.path.exists(song_folder):
-            # Fallback to old mapping system
-            song_folders = {
-                'MrBrightside': 'MrBrighstide',
-                'GhostTown': 'GhostTown',
-                'Milan': 'Milan',
-                'TeenageDirtbag': 'TeenageDirtbag'
-            }
-            
-            folder_name = song_folders.get(song_name)
-            if not folder_name:
-                return 'Song not found', 404
-            song_folder = os.path.join(current_app.config['AUDIO_OUTPUT_FOLDER'], folder_name)
-        
+        from app.utils.audio_paths import resolve_output_folder
+
+        folder = resolve_output_folder(
+            song_name, current_app.config['AUDIO_OUTPUT_FOLDER']
+        )
+        if folder is None:
+            return 'Song not found', 404
+        song_folder = str(folder)
+
         filepath = os.path.join(song_folder, f'reconstructed_audio_{frequency}.wav')
         
         if os.path.exists(filepath):
@@ -111,28 +109,65 @@ def submit_guess():
         song_guess == correct_title_artist
     )
     
-    # Calculate final score
     final_score = max(0, 8 - difficulty_level) if is_correct else 0
-    
-    # Always update global song stats
-    StatsService.update_song_stats(current_song.id, final_score, is_correct)
-    
-    # Update user stats if user is logged in
+    correct_answer = f"{current_song.title} by {current_song.artist}"
+
     if current_user.is_authenticated:
-        StatsService.update_user_stats(
-            current_user.id, 
-            current_song.id, 
-            final_score, 
-            is_correct, 
-            difficulty_level
+        user_stat = UserStats.query.filter_by(
+            user_id=current_user.id,
+            song_id=current_song.id,
+        ).first()
+        if user_stat and user_stat.has_played:
+            return jsonify({
+                'correct': user_stat.correct_guess,
+                'correct_answer': correct_answer,
+                'score': max(0, 8 - user_stat.difficulty_level) if user_stat.correct_guess else 0,
+                'difficulty_level': user_stat.difficulty_level,
+                'already_played': True,
+                'message': 'You have already submitted a guess for this song.',
+            })
+
+        available = AudioService.get_available_frequencies(current_song.base_filename)
+        max_difficulty = max(0, len(available) - 1) if available else 7
+
+        updated = StatsService.update_user_stats(
+            current_user.id,
+            current_song.id,
+            final_score,
+            is_correct,
+            difficulty_level,
+            max_difficulty_level=max_difficulty,
         )
-    
+        if not updated:
+            return jsonify({
+                'correct': is_correct,
+                'correct_answer': correct_answer,
+                'score': final_score,
+                'difficulty_level': difficulty_level,
+                'already_played': True,
+                'message': 'You have already submitted a guess for this song.',
+            }), 409
+
+        round_complete = is_correct or int(difficulty_level) >= max_difficulty
+
+        return jsonify({
+            'correct': is_correct,
+            'correct_answer': correct_answer,
+            'score': final_score,
+            'difficulty_level': difficulty_level,
+            'already_played': False,
+            'round_complete': round_complete,
+        })
+
+    # Guests: practice only — no global stats
     return jsonify({
         'correct': is_correct,
-        'correct_answer': f"{current_song.title} by {current_song.artist}",
+        'correct_answer': correct_answer,
         'score': final_score,
         'difficulty_level': difficulty_level,
-        'already_played': False
+        'already_played': False,
+        'guest': True,
+        'message': 'Log in to save your score to the leaderboard.',
     })
 
 @bp.route('/current_stats')
@@ -212,6 +247,10 @@ def admin_login():
         admin_user = AdminUser.query.filter_by(username=username).first()
         
         if admin_user and password and admin_user.check_password(password):
+            from app.models import AdminUser as AdminUserModel
+
+            if current_user.is_authenticated and not isinstance(current_user, AdminUserModel):
+                logout_user()
             session.permanent = True
             login_user(admin_user, remember=True)
             if request.is_json:
@@ -226,38 +265,46 @@ def admin_login():
     
     return render_template('admin_login.html')
 
+@bp.route('/admin/logout')
+def admin_logout():
+    """Log out admin and return to admin login."""
+    logout_user()
+    return redirect(url_for('main.admin_login'))
+
+
 @bp.route('/admin')
-@login_required
+@admin_required
 def admin_panel():
     """Admin panel page"""
-    from app.models import AdminUser
-
-    if not isinstance(current_user, AdminUser):
-        abort(403, description="Admin access required")
-
     songs = Song.query.all()
+
+    total_plays = db.session.query(
+        func.coalesce(func.sum(SongStats.total_plays), 0)
+    ).scalar()
+    week_start = date.today() - timedelta(days=date.today().weekday())
+    week_start_dt = datetime.combine(week_start, datetime.min.time())
+    this_week_plays = UserStats.query.filter(
+        UserStats.guessed_at >= week_start_dt,
+        UserStats.guess_count > 0,
+    ).count()
 
     stats = {
         'total_songs': Song.query.count(),
-        'total_plays': 0,
-        'this_week_plays': 0
+        'total_plays': int(total_plays or 0),
+        'this_week_plays': this_week_plays,
     }
 
     return render_template('admin.html', songs=songs, stats=stats)
 
 @bp.route('/admin/set_active/<int:song_id>', methods=['POST'])
+@admin_required
 def set_active(song_id):
     """Set a song as active"""
-    # Set all songs as inactive first
     Song.query.update({Song.is_active: False})
-    
-    # Set the selected song as active
     song = Song.query.get_or_404(song_id)
     song.is_active = True
-    
-    from app import db
+    StatsService.reset_has_played_for_song(song_id)
     db.session.commit()
-    
     return redirect(url_for('main.admin_panel'))
 
 @bp.route('/login', methods=['GET', 'POST'])
@@ -291,79 +338,67 @@ def login():
 def signup():
     """User signup page"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
+        if request.is_json:
+            data = request.get_json() or {}
+            username = (data.get('username') or '').strip()
+            email = (data.get('email') or '').strip()
+            password = data.get('password') or ''
+            confirm_password = data.get('confirm_password') or ''
+        else:
+            username = (request.form.get('username') or '').strip()
+            email = (request.form.get('email') or '').strip()
+            password = request.form.get('password') or ''
+            confirm_password = request.form.get('confirm_password') or ''
+
+        wants_json = request.is_json
+
         if not username or not email or not password:
-            return render_template('signup.html', error='All fields are required')
+            msg = 'All fields are required'
+            return _signup_error(msg, wants_json)
+        if password != confirm_password:
+            msg = 'Passwords do not match'
+            return _signup_error(msg, wants_json)
+        if len(password) < 6:
+            msg = 'Password must be at least 6 characters'
+            return _signup_error(msg, wants_json)
+        if not username.replace('_', '').isalnum() or not username[0].isalnum():
+            msg = 'Username can only contain letters, numbers, and underscores'
+            return _signup_error(msg, wants_json)
         if User.query.filter_by(username=username).first():
-            return render_template('signup.html', error='Username already exists')
+            msg = 'Username already exists'
+            return _signup_error(msg, wants_json)
         if User.query.filter_by(email=email).first():
-            return render_template('signup.html', error='Email already exists')
-        user = User(username=username, email=email, password_hash=generate_password_hash(password)) # type: ignore
-        from app import db
+            msg = 'Email already exists'
+            return _signup_error(msg, wants_json)
+
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password),
+        )
         db.session.add(user)
         db.session.commit()
         login_user(user)
+        if wants_json:
+            return jsonify({'success': True, 'message': 'Account created'})
         return redirect(url_for('main.index'))
     return render_template('signup.html')
+
+
+def _signup_error(message: str, wants_json: bool):
+    if wants_json:
+        return jsonify({'success': False, 'error': message}), 400
+    return render_template('signup.html', error=message)
 
 @bp.route('/spotify_search')
 def spotify_search():
     """Search Spotify for tracks"""
-    query = request.args.get('q', '').strip()
-    
-    if not query:
-        return jsonify({'tracks': []})
+    query = request.args.get('q', '')
+    return jsonify(SpotifyService.search_for_api(query, limit=5))
 
-    client_id = (current_app.config.get('SPOTIFY_CLIENT_ID') or '').strip()
-    client_secret = (current_app.config.get('SPOTIFY_CLIENT_SECRET') or '').strip()
-    if not client_id or not client_secret:
-        return jsonify({
-            'tracks': [],
-            'error': (
-                'Spotify API credentials are missing. Create an app at '
-                'https://developer.spotify.com/dashboard then set SPOTIFY_CLIENT_ID and '
-                'SPOTIFY_CLIENT_SECRET in a .env file in the project root (or in your '
-                'deployment environment).'
-            ),
-            'missing_credentials': True,
-        })
-    
-    try:
-        # Import spotipy here to avoid circular imports
-        import spotipy
-        from spotipy.oauth2 import SpotifyClientCredentials
-        
-        # Initialize Spotify client
-        client_credentials_manager = SpotifyClientCredentials(
-            client_id=client_id,
-            client_secret=client_secret
-        )
-        sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-        
-        # Search for tracks
-        results = sp.search(q=query, type='track', limit=5)
-        
-        tracks = []
-        if results and 'tracks' in results and 'items' in results['tracks']:
-            for track in results['tracks']['items']:
-                if track:
-                    tracks.append({
-                        'name': track.get('name', 'Unknown Title'),
-                        'artist': track.get('artists', [{}])[0].get('name', 'Unknown Artist') if track.get('artists') else 'Unknown Artist',
-                        'album': track.get('album', {}).get('name', 'Unknown Album') if track.get('album') else 'Unknown Album',
-                        'spotify_id': track.get('id', ''),
-                        'duration_ms': track.get('duration_ms', 0)
-                    })
-        
-        return jsonify({'tracks': tracks})
-        
-    except Exception as e:
-        current_app.logger.warning('Spotify search error: %s', e)
-        return jsonify({'tracks': [], 'error': str(e)})
 
 @bp.route('/admin/process_spotify_song', methods=['POST'])
+@admin_required
 def process_spotify_song():
     """Process a Spotify song and add it to the game"""
     try:
@@ -456,29 +491,23 @@ def process_spotify_song():
         })
 
 @bp.route('/admin/delete/<int:song_id>', methods=['DELETE'])
+@admin_required
 def delete_song(song_id):
     """Delete a song from the database"""
     try:
         song = Song.query.get_or_404(song_id)
-        
-        # Delete queue entries first (foreign key constraint)
-        from app.models.song import SongQueue
-        SongQueue.query.filter_by(song_id=song_id).delete()
-        
-        # Delete the song
-        from app import db
+        delete_song_related_rows(song_id)
         db.session.delete(song)
         db.session.commit()
-        
         return jsonify({'success': True})
-        
+
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        db.session.rollback()
+        current_app.logger.error('Delete song failed: %s', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bp.route('/admin/queue_week', methods=['POST'])
+@admin_required
 def queue_week():
     """Queue songs for the current week"""
     try:
@@ -511,6 +540,7 @@ def queue_week():
         })
 
 @bp.route('/admin/activate_today')
+@admin_required
 def activate_today():
     """Activate today's song"""
     try:
@@ -534,6 +564,7 @@ def activate_today():
         })
 
 @bp.route('/admin/queue_status')
+@admin_required
 def queue_status():
     """Get current queue status"""
     try:
@@ -574,6 +605,7 @@ def queue_status():
         })
 
 @bp.route('/admin/clear_queue', methods=['POST'])
+@admin_required
 def clear_queue():
     """Clear the current week's queue"""
     try:

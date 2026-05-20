@@ -3,28 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile - Frequent Listener</title>
+    <title>Profile — Fouriele</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
 </head>
-<body>
-    <div class="page-container">
-        <!-- Navigation -->
-        <nav class="nav-bar">
-            <div class="nav-content">
-                <a href="{{ url_for('main.index') }}" class="nav-logo">🎵 Frequent Listener</a>
-                <div class="nav-links">
-                    <a href="{{ url_for('main.index') }}">Play Game</a>
+<body class="fouriele-game fouriele-profile">
+    <div class="wave-background" aria-hidden="true">
+        <svg class="wave-svg" preserveAspectRatio="none" viewBox="0 0 1200 800"></svg>
+    </div>
+
+    <div class="game-shell profile-shell">
+        <nav class="game-nav">
+            <a href="{{ url_for('main.index') }}" class="nav-link nav-back">← Play</a>
+            <div class="user-menu">
+                <button type="button" class="user-menu-btn" id="userMenuBtn" aria-expanded="false" aria-haspopup="true">
+                    {{ current_user.username }}
+                    <span class="user-menu-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="user-menu-dropdown hidden" id="userMenuDropdown">
                     <a href="{{ url_for('main.profile') }}" class="active">Profile</a>
                     <a href="{{ url_for('main.logout') }}">Logout</a>
                 </div>
             </div>
         </nav>
 
-        <!-- Profile Header -->
         <header class="profile-header">
             <div class="user-info">
-                <div class="avatar">👤</div>
+                <div class="avatar" aria-hidden="true">👤</div>
                 <div class="user-details">
                     <h1>{{ current_user.username }}</h1>
                     <p>{{ current_user.email }}</p>
@@ -33,17 +38,16 @@
             </div>
         </header>
 
-        <!-- Stats Overview -->
         <section class="stats-overview">
-            <h2>Your Stats</h2>
+            <h2>Your stats</h2>
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-number">{{ stats.total_guesses }}</div>
-                    <div class="stat-label">Total Guesses</div>
+                    <div class="stat-label">Total guesses</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">{{ stats.correct_guesses }}</div>
-                    <div class="stat-label">Correct Guesses</div>
+                    <div class="stat-label">Correct guesses</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">{{ "%.1f"|format(stats.accuracy) }}%</div>
@@ -51,14 +55,13 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">{{ stats.songs_attempted }}</div>
-                    <div class="stat-label">Songs Attempted</div>
+                    <div class="stat-label">Songs attempted</div>
                 </div>
             </div>
         </section>
 
-        <!-- Recent Activity -->
         <section class="recent-activity">
-            <h2>Recent Activity</h2>
+            <h2>Recent activity</h2>
             {% if stats.recent_activity %}
             <div class="activity-list">
                 {% for activity in stats.recent_activity %}
@@ -68,10 +71,10 @@
                     </div>
                     <div class="activity-details">
                         <span class="activity-result {% if activity.correct_guess %}correct{% else %}incorrect{% endif %}">
-                            {% if activity.correct_guess %}✅ Correct{% else %}❌ Incorrect{% endif %}
+                            {% if activity.correct_guess %}Correct{% else %}Incorrect{% endif %}
                         </span>
                         <span class="activity-difficulty">
-                            {{ activity.difficulty_level }} frequencies
+                            {{ activity.difficulty_level }} tier{{ 's' if activity.difficulty_level != 1 else '' }}
                         </span>
                         <span class="activity-time">
                             {{ activity.guessed_at if activity.guessed_at else 'Unknown' }}
@@ -82,11 +85,30 @@
             </div>
             {% else %}
             <div class="no-activity">
-                <p>No activity yet. Start playing to see your stats!</p>
-                <a href="{{ url_for('main.index') }}" class="btn btn-primary">Play Now</a>
+                <p>No activity yet. Start playing to see your stats.</p>
+                <a href="{{ url_for('main.index') }}" class="btn-profile-play">Play now</a>
             </div>
             {% endif %}
         </section>
     </div>
+
+    <script src="{{ url_for('static', filename='js/waves-bg.js') }}"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var btn = document.getElementById('userMenuBtn');
+        var menu = document.getElementById('userMenuDropdown');
+        if (!btn || !menu) return;
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var open = !menu.classList.contains('hidden');
+            menu.classList.toggle('hidden', open);
+            btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        });
+        document.addEventListener('click', function() {
+            menu.classList.add('hidden');
+            btn.setAttribute('aria-expanded', 'false');
+        });
+    });
+    </script>
 </body>
-</html> 
+</html>

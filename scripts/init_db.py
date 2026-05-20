@@ -45,8 +45,8 @@ def init_database():
         
         print("\n🎉 Database initialization complete!")
         print("\nNext steps:")
-        print("1. Admin login: /admin/login  (user: admin, password: MadJax195)")
-        print("2. Optional: python scripts/create_admin.py  (same password reset)")
+        print("1. Copy .env.example to .env and set ADMIN_PASSWORD (and Spotify keys for admin search)")
+        print("2. Admin login: http://127.0.0.1:5001/admin/login  (user: admin, password from ADMIN_PASSWORD)")
         print("3. Run the application: python run.py")
 
 if __name__ == "__main__":

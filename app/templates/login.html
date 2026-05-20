@@ -3,44 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Frequent Listener</title>
+    <title>Login — Fouriele</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
-<body>
+<body class="auth-page">
     <div class="auth-container">
+        <a href="{{ url_for('main.index') }}" class="auth-back">← Back to game</a>
         <div class="auth-card">
             <div class="auth-header">
-                <h1>🎵 Frequent Listener</h1>
-                <p>Welcome back! Sign in to track your progress</p>
+                <h1>Fouriele</h1>
+                <p>Sign in to save scores and view your stats</p>
             </div>
-            
+
             <form id="loginForm" class="auth-form" method="POST">
                 <div class="form-group">
-                    <label for="identifier">Email or Username</label>
-                    <input type="text" id="identifier" name="identifier" required>
+                    <label for="identifier">Email or username</label>
+                    <input type="text" id="identifier" name="identifier" required autocomplete="username">
                 </div>
-                
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
                 </div>
-                
-                <button type="submit" class="btn btn-primary">Sign In</button>
+                <button type="submit" class="btn btn-primary">Sign in</button>
             </form>
-            
+
             <div class="auth-footer">
-                <p>Don't have an account? <a href="{{ url_for('main.signup') }}">Sign up</a></p>
+                <p>Don&rsquo;t have an account? <a href="{{ url_for('main.signup') }}">Sign up</a></p>
                 <p><a href="{{ url_for('main.index') }}">Continue as guest</a></p>
             </div>
-            
-            <div id="errorMessage" class="error-message" style="display: none;">
-                {% if error %}
-                {{ error }}
-                {% endif %}
+
+            <div id="errorMessage" class="error-message" style="display: none;" role="alert">
+                {% if error %}{{ error }}{% endif %}
             </div>
         </div>
     </div>
-
+    <script>
+        {% if error %}document.getElementById('errorMessage').style.display = 'block';{% endif %}
+    </script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
-</html> 
+</html>

@@ -99,12 +99,19 @@ class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True
     FLASK_ENV = 'development'
-    # Change to any folder name that matches Song.base_filename + audio/OutputWAVS/<name>/
-    FORCED_PLAYBACK_BASE_FILENAME = 'Lit_MyOwnWorstEnemy'
+    # Follow DB is_active + dev_seed auto-pick. Override only via .env for debugging:
+    FORCED_PLAYBACK_BASE_FILENAME = (
+        os.environ.get('FORCE_PLAYBACK_BASE_FILENAME', '').strip() or None
+    )
     
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
+        if not os.environ.get('SECRET_KEY'):
+            app.logger.warning(
+                'SECRET_KEY is not set; using insecure dev default. '
+                'Set SECRET_KEY in .env before deploying.'
+            )
         os.makedirs(os.path.join(_PROJECT_ROOT, 'data'), exist_ok=True)
         upload = app.config['UPLOAD_FOLDER']
         if not os.path.isabs(upload):
@@ -123,6 +130,13 @@ class ProductionConfig(Config):
     
     @classmethod
     def init_app(cls, app):
+        secret = os.environ.get('SECRET_KEY', '').strip()
+        if not secret or secret == 'dev-secret-key-change-in-production':
+            raise ValueError(
+                'SECRET_KEY must be set to a strong random value in production'
+            )
+        app.config['SECRET_KEY'] = secret
+
         uri = os.environ.get('DATABASE_URL')
         if not uri:
             raise ValueError("DATABASE_URL environment variable is required for production")

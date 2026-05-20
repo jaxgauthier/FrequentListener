@@ -1,69 +1,52 @@
 #!/usr/bin/env python3
 """
-Script to fix admin user ID conflict and update JaxsonG05 password
+One-off helper: resolve admin vs regular user ID conflicts.
+
+Does not set hardcoded passwords. After running, reset passwords via:
+  ADMIN_PASSWORD=... python scripts/create_admin.py
 """
 
-import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app import create_app, db
 from app.models.user import User, AdminUser
-from werkzeug.security import generate_password_hash
+from app.utils.dev_seed import DEFAULT_ADMIN_USERNAME, ensure_admin_user
+
 
 def fix_admin_id():
     app = create_app()
     with app.app_context():
         print("=== Fixing Admin User ID Conflict ===")
-        
-        # Check current state
+
         regular_user = User.query.filter_by(username='JaxsonG05').first()
-        admin_user = AdminUser.query.filter_by(username='admin').first()
-        
-        print(f"Regular user 'JaxsonG05': ID {regular_user.id if regular_user else 'Not found'}")
-        print(f"Admin user 'admin': ID {admin_user.id if admin_user else 'Not found'}")
-        
-        # Change password for JaxsonG05
-        if regular_user:
-            regular_user.password_hash = generate_password_hash('Charlie702')
-            db.session.commit()
-            print("✅ Changed password for JaxsonG05 to 'Charlie702'")
-        else:
-            print("❌ Could not find user JaxsonG05 to change password")
-        
+        admin_user = AdminUser.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
+
+        print(
+            f"Regular user 'JaxsonG05': ID {regular_user.id if regular_user else 'Not found'}"
+        )
+        print(
+            f"Admin user '{DEFAULT_ADMIN_USERNAME}': "
+            f"ID {admin_user.id if admin_user else 'Not found'}"
+        )
+
         if regular_user and admin_user and regular_user.id == admin_user.id:
-            print("⚠️  ID conflict detected! Both users have ID 1")
-            
-            # Delete the admin user
+            print("ID conflict detected — recreating admin user with a new ID")
             db.session.delete(admin_user)
             db.session.commit()
-            print("Deleted conflicting admin user")
-            
-            # Create new admin user with explicit ID
-            new_admin = AdminUser(
-                id=999,  # Use a high ID number to avoid conflicts
-                username='admin',
-                email='admin@example.com',
-                password_hash=generate_password_hash('MadJax195')
-            )
-            db.session.add(new_admin)
+            ensure_admin_user()
             db.session.commit()
-            
-            print(f"✅ Created new admin user with ID {new_admin.id}")
-            
-            # Verify the fix
-            regular_user = User.query.filter_by(username='JaxsonG05').first()
-            admin_user = AdminUser.query.filter_by(username='admin').first()
-            
-            print(f"Regular user 'JaxsonG05': ID {regular_user.id}")
-            print(f"Admin user 'admin': ID {admin_user.id}")
-            
-            if regular_user.id != admin_user.id:
-                print("✅ ID conflict resolved!")
-            else:
-                print("❌ ID conflict still exists")
+            admin_user = AdminUser.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
+            print(f"New admin user ID: {admin_user.id if admin_user else 'failed'}")
         else:
-            print("✅ No ID conflict detected")
+            print("No ID conflict — ensuring admin user exists")
+            ensure_admin_user()
+            db.session.commit()
+
+        print("Done. Set ADMIN_PASSWORD in .env and run: python scripts/create_admin.py")
+
 
 if __name__ == "__main__":
-    fix_admin_id() 
+    fix_admin_id()
