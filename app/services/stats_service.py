@@ -44,7 +44,10 @@ class StatsService:
             
             for stat in all_user_stats:
                 if stat.correct_guess:
-                    score = max(0, 8 - stat.difficulty_level)
+                    if stat.final_score is not None:
+                        score = stat.final_score
+                    else:
+                        score = max(0, 8 - stat.difficulty_level)
                     points_distribution[score] = points_distribution.get(score, 0) + 1
             
             # Calculate max count for bar chart scaling
@@ -113,6 +116,7 @@ class StatsService:
                 existing_stat.guessed_at = datetime.utcnow()
                 if round_complete:
                     existing_stat.has_played = True
+                    existing_stat.final_score = int(final_score)
             else:
                 new_stat = UserStats(
                     user_id=user_id,
@@ -122,6 +126,7 @@ class StatsService:
                     difficulty_level=difficulty_level,
                     guessed_at=datetime.utcnow(),
                     has_played=round_complete,
+                    final_score=int(final_score) if round_complete else None,
                 )
                 db.session.add(new_stat)
 
@@ -220,15 +225,24 @@ class StatsService:
             
             recent_activity = []
             for stat in recent_stats:
-                song = Song.query.get(stat.song_id)
-                if song:
-                    recent_activity.append({
-                        'title': song.title,
-                        'artist': song.artist,
-                        'correct_guess': stat.correct_guess,
-                        'difficulty_level': stat.difficulty_level,
-                        'guessed_at': stat.guessed_at.strftime('%Y-%m-%d %H:%M:%S') if stat.guessed_at else 'Unknown'
-                    })
+                song = Song.query.get(stat.song_id) if stat.song_id else None
+                title = song.title if song else 'Unknown song'
+                artist = song.artist if song else ''
+                if stat.final_score is not None:
+                    score_label = str(stat.final_score)
+                elif stat.correct_guess:
+                    score_label = str(max(0, 8 - stat.difficulty_level))
+                else:
+                    score_label = '—'
+                recent_activity.append({
+                    'title': title,
+                    'artist': artist,
+                    'correct_guess': stat.correct_guess,
+                    'difficulty_level': stat.difficulty_level,
+                    'final_score': stat.final_score,
+                    'score_label': score_label,
+                    'guessed_at': stat.guessed_at.strftime('%Y-%m-%d %H:%M:%S') if stat.guessed_at else 'Unknown',
+                })
             
             return {
                 'total_guesses': total_guesses,

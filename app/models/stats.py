@@ -19,7 +19,9 @@ class UserStats(db.Model):
     difficulty_level = db.Column(db.Integer, default=0)
     guessed_at = db.Column(db.DateTime, default=datetime.utcnow)
     has_played = db.Column(db.Boolean, default=False)
-    
+    # Locked in when the round ends (0–8); kept forever even if the song is archived
+    final_score = db.Column(db.Integer, nullable=True)
+
     def __repr__(self):
         return f'<UserStats {self.user_id} - {self.song_id}>'
 

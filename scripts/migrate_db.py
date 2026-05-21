@@ -21,6 +21,9 @@ def migrate_database():
     with app.app_context():
         print("Creating database tables...")
         db.create_all()
+        from app.utils.db_upgrade import ensure_schema_upgrades
+
+        ensure_schema_upgrades()
         print("Database tables created successfully!")
         
         from app.utils.dev_seed import ensure_admin_user

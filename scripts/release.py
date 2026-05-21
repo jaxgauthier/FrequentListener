@@ -25,6 +25,10 @@ def main():
         print('Running release: create tables + ensure admin user...')
         db.create_all()
 
+        from app.utils.db_upgrade import ensure_schema_upgrades
+
+        ensure_schema_upgrades()
+
         from app.utils.dev_seed import ensure_admin_user
 
         ensure_admin_user()

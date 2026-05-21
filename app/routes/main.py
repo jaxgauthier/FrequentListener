@@ -9,7 +9,7 @@ from app.services import StatsService, AudioService
 from app.services.queue_service import QueueService
 from app.services.spotify_service import SpotifyService
 from app.utils.auth import admin_required
-from app.utils.song_cleanup import delete_song_related_rows
+from app.utils.song_cleanup import archive_song
 from app import db
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -28,7 +28,7 @@ def _get_playback_song():
             song = Song.query.filter_by(base_filename=name).first()
             if song:
                 return song
-    return Song.query.filter_by(is_active=True).first()
+    return Song.query.filter_by(is_active=True, is_deleted=False).first()
 
 
 @bp.route('/')
@@ -276,7 +276,7 @@ def admin_logout():
 @admin_required
 def admin_panel():
     """Admin panel page"""
-    songs = Song.query.all()
+    songs = Song.catalog().order_by(Song.created_at.desc()).all()
 
     total_plays = db.session.query(
         func.coalesce(func.sum(SongStats.total_plays), 0)
@@ -289,7 +289,7 @@ def admin_panel():
     ).count()
 
     stats = {
-        'total_songs': Song.query.count(),
+        'total_songs': Song.catalog().count(),
         'total_plays': int(total_plays or 0),
         'this_week_plays': this_week_plays,
     }
@@ -493,11 +493,12 @@ def process_spotify_song():
 @bp.route('/admin/delete/<int:song_id>', methods=['DELETE'])
 @admin_required
 def delete_song(song_id):
-    """Delete a song from the database"""
+    """Archive a song: remove from game/admin list but keep user_stats history."""
     try:
         song = Song.query.get_or_404(song_id)
-        delete_song_related_rows(song_id)
-        db.session.delete(song)
+        base_filename = song.base_filename
+        archive_song(song)
+        QueueService.delete_song_files(base_filename)
         db.session.commit()
         return jsonify({'success': True})
 

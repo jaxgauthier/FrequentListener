@@ -74,7 +74,7 @@
                             {% if activity.correct_guess %}Correct{% else %}Incorrect{% endif %}
                         </span>
                         <span class="activity-difficulty">
-                            {{ activity.difficulty_level }} tier{{ 's' if activity.difficulty_level != 1 else '' }}
+                            Score {{ activity.score_label }}
                         </span>
                         <span class="activity-time">
                             {{ activity.guessed_at if activity.guessed_at else 'Unknown' }}

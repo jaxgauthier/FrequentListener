@@ -94,7 +94,7 @@ def _pick_newest_db_song_with_files() -> Song | None:
     rows = Song.query.order_by(Song.created_at.desc()).all()
     demo: Song | None = None
     for s in rows:
-        if not _song_has_playable_files(s):
+        if s.is_deleted or not _song_has_playable_files(s):
             continue
         if s.base_filename == DEMO_SONG_BASE:
             if demo is None:
@@ -105,7 +105,7 @@ def _pick_newest_db_song_with_files() -> Song | None:
 
 
 def _set_only_active(song: Song) -> None:
-    for s in Song.query.all():
+    for s in Song.query.filter_by(is_deleted=False):
         s.is_active = False
     song.is_active = True
 
@@ -133,7 +133,7 @@ def ensure_default_song_works() -> None:
     levels = list(current_app.config['FREQUENCY_LEVELS'])
     out_root = Path(current_app.config['AUDIO_OUTPUT_FOLDER'])
 
-    active = Song.query.filter_by(is_active=True).first()
+    active = Song.query.filter_by(is_active=True, is_deleted=False).first()
     if active and _song_has_playable_files(active):
         # If DemoSong is active but a real download exists, prefer the download.
         if active.base_filename == DEMO_SONG_BASE:

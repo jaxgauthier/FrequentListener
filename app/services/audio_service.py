@@ -18,7 +18,22 @@ from app.utils.audio_paths import resolve_output_folder
 
 class AudioService:
     """Service for audio processing and management"""
-    
+
+    @staticmethod
+    def _youtube_ydl_opts(base_opts):
+        """Merge base yt-dlp options with optional cookie auth (see YTDLP_COOKIES)."""
+        opts = dict(base_opts)
+        cookies_path = (os.environ.get('YTDLP_COOKIES') or '').strip()
+        if cookies_path and os.path.isfile(cookies_path):
+            opts['cookiefile'] = cookies_path
+        # Slightly more browser-like; helps a little on datacenter IPs.
+        opts.setdefault(
+            'user_agent',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        )
+        return opts
+
     @staticmethod
     def get_available_frequencies(song_name):
         """Get available frequency levels for a song"""
@@ -50,16 +65,15 @@ class AudioService:
                 temp_audio_path_base = temp_audio_file.name
             temp_audio_tmpl = temp_audio_path_base + ".%(ext)s"
             
-            # yt-dlp options
-            ydl_opts = {
+            ydl_opts = AudioService._youtube_ydl_opts({
                 'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
                 'outtmpl': temp_audio_tmpl,
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': False,
                 'postprocessors': [],
-            }
-            
+            })
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 # Download in one step; search metadata alone often lacks a direct media URL.
                 search_results = ydl.extract_info(

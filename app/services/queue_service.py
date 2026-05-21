@@ -29,7 +29,7 @@ class QueueService:
             if i >= 7:  # Only queue 7 songs max
                 break
                 
-            song = Song.query.get(song_id)
+            song = Song.catalog().filter_by(id=song_id).first()
             if not song:
                 continue
             
@@ -68,7 +68,7 @@ class QueueService:
         if target_date is None:
             target_date = date.today()
 
-        Song.query.update({Song.is_active: False})
+        Song.query.filter_by(is_deleted=False).update({Song.is_active: False})
 
         queue_entry = SongQueue.query.filter_by(
             scheduled_date=target_date,
@@ -100,21 +100,14 @@ class QueueService:
             SongQueue.status.in_(['completed', 'deleted'])
         ).all()
         
+        from app.utils.song_cleanup import archive_song
+
         for entry in expired_entries:
             if entry.song:
-                # Delete audio files
                 QueueService.delete_song_files(entry.song.base_filename)
-                
-                # Delete all related stats
-                from app.models import UserStats, SongStats
-                UserStats.query.filter_by(song_id=entry.song.id).delete()
-                SongStats.query.filter_by(song_id=entry.song.id).delete()
-                
-                # Delete the song record itself
-                db.session.delete(entry.song)
-                
-                # Delete the queue entry
-                db.session.delete(entry)
+                archive_song(entry.song)
+
+            db.session.delete(entry)
         
         db.session.commit()
     

@@ -19,8 +19,14 @@ class Song(db.Model):
     spotify_id = db.Column(db.String(100), nullable=True)
     has_frequency_versions = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
+    @classmethod
+    def catalog(cls):
+        """Songs visible in admin and eligible for queue/active (not archived)."""
+        return cls.query.filter(cls.is_deleted.is_(False))
+
     @property
     def available_frequencies(self):
         """Get available frequency versions for this song"""

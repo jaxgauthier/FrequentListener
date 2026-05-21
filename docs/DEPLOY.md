@@ -143,6 +143,34 @@ gunicorn -c gunicorn.conf.py wsgi:app
 
 ---
 
+## YouTube “Sign in to confirm you're not a bot” on Render
+
+Render uses **datacenter IPs**. YouTube often blocks admin **Process song** downloads there even when it works on your Mac.
+
+**Recommended (most reliable):** process songs **locally**, then put WAVs on the server:
+
+```bash
+# On your Mac (with .env + ffmpeg)
+python run.py
+# Admin → process song, or use existing audio/OutputWAVS folders
+
+# Register DB rows locally, or on Render Shell after copying files:
+python scripts/register_songs_from_disk.py
+```
+
+Copy folders to the Render disk (`/var/data/OutputWAVS/`) via Shell, SFTP, or rsync.
+
+**Optional — cookies on Render:**
+
+1. Export YouTube cookies (Netscape format) from your browser — see [yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies).
+2. Render → Web Service → **Secret Files** → add `cookies.txt`.
+3. Environment: `YTDLP_COOKIES=/etc/secrets/cookies.txt`
+4. Redeploy and retry Process song.
+
+Cookies expire; you may need to re-export. This still may fail on some hosts.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -150,6 +178,7 @@ gunicorn -c gunicorn.conf.py wsgi:app
 | App crashes on boot | Missing `SECRET_KEY` or `DATABASE_URL` in production |
 | No audio | WAVs not on persistent disk; wrong `AUDIO_OUTPUT_FOLDER` |
 | Admin process fails | Install ffmpeg; check logs; increase `GUNICORN_TIMEOUT` |
+| YouTube bot error on Render | Process locally + upload WAVs; or `YTDLP_COOKIES` secret file |
 | Login loops / http cookies | Ensure HTTPS proxy headers (Render/Railway do); `SESSION_COOKIE_SECURE` |
 | `psycopg2` errors | `psycopg2-binary` in requirements (already added) |
 
