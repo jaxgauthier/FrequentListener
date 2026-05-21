@@ -1,0 +1,3 @@
+# Railway / Nixpacks: install ffmpeg for admin song processing
+[phases.setup]
+nixPkgs = ["ffmpeg"]

@@ -84,5 +84,8 @@ audio/uploads/*
 
 # Spotify credentials
 cookies.txt
+
+# UI design reference (not needed to run the app)
+Fouriele game interface design/
  
 python-version

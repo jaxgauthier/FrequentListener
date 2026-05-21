@@ -29,8 +29,11 @@ class Config:
     
     # File Upload Configuration
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
-    UPLOAD_FOLDER = 'audio/uploads'
-    AUDIO_OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'audio', 'OutputWAVS')
+    _PROJECT_AUDIO = os.path.join(_PROJECT_ROOT, 'audio')
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(_PROJECT_AUDIO, 'uploads')
+    AUDIO_OUTPUT_FOLDER = os.environ.get('AUDIO_OUTPUT_FOLDER') or os.path.join(
+        _PROJECT_AUDIO, 'OutputWAVS'
+    )
     
     # Spotify API Configuration
     SPOTIFY_CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID')
@@ -124,10 +127,14 @@ class ProductionConfig(Config):
     """Production configuration"""
     DEBUG = False
     FLASK_ENV = 'production'
-    
-    # Enable CDN in production if configured
-    USE_CDN = os.environ.get('USE_CDN', 'True').lower() == 'true'
-    
+
+    # Only use CDN when explicitly configured (see CDN_URL)
+    USE_CDN = os.environ.get('USE_CDN', 'false').lower() == 'true'
+
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+
     @classmethod
     def init_app(cls, app):
         secret = os.environ.get('SECRET_KEY', '').strip()
@@ -143,8 +150,24 @@ class ProductionConfig(Config):
         if uri.startswith('postgres://'):
             uri = uri.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = uri
+
+        upload = app.config['UPLOAD_FOLDER']
+        if not os.path.isabs(upload):
+            upload = os.path.join(_PROJECT_ROOT, upload)
+            app.config['UPLOAD_FOLDER'] = upload
+        audio_out = app.config['AUDIO_OUTPUT_FOLDER']
+        if not os.path.isabs(audio_out):
+            audio_out = os.path.join(_PROJECT_ROOT, audio_out)
+            app.config['AUDIO_OUTPUT_FOLDER'] = audio_out
+
+        os.makedirs(upload, exist_ok=True)
+        os.makedirs(audio_out, exist_ok=True)
+        log_dir = os.path.dirname(app.config.get('LOG_FILE') or '')
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+
         Config.init_app(app)
-        
+
         # Production security headers
         @app.after_request
         def add_security_headers(response):
@@ -152,7 +175,7 @@ class ProductionConfig(Config):
             response.headers['X-Frame-Options'] = 'SAMEORIGIN'
             response.headers['X-XSS-Protection'] = '1; mode=block'
             return response
-        
+
         app.logger.info('Production mode enabled')
 
 class TestingConfig(Config):

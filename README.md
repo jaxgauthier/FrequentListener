@@ -150,19 +150,23 @@ If Spotify search fails, check `.env` credentials and restart the server after c
 
 Player UI is based on `Fouriele game interface design/` (circular player, wave background, Fouriele branding).
 | `python scripts/build_assets.py` | Build minified static bundles (optional) |
+| `python scripts/release.py` | Production deploy: create tables + admin user |
+| `gunicorn -c gunicorn.conf.py wsgi:app` | Run production server locally or on host |
 
 ---
 
-## Production (later)
+## Production / deploy
 
-Not required for local testing. When you deploy:
+See **[docs/DEPLOY.md](docs/DEPLOY.md)** for Render, Railway, Fly.io, and VPS steps.
 
-- Set `FLASK_ENV=production`
-- Set `DATABASE_URL` (Postgres; Railway/Heroku often use `postgres://` — the app normalizes to `postgresql://`)
-- Set a strong `SECRET_KEY`
-- Run with **gunicorn** (or similar), not `python run.py` with debug
+Quick summary:
+
+- `FLASK_ENV=production`, Postgres `DATABASE_URL`, strong `SECRET_KEY`
+- Run with **gunicorn**: `gunicorn -c gunicorn.conf.py wsgi:app`
+- **Persistent disk** for `audio/OutputWAVS/` (or set `AUDIO_OUTPUT_FOLDER`)
+- `python scripts/release.py` on each deploy
 - Schedule `python scripts/daily_activation.py` daily
-- Do not use default `ADMIN_PASSWORD` or commit `.env`
+- **Vercel is not supported** for this Flask + WAV stack
 
 ---
 

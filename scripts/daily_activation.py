@@ -18,6 +18,8 @@ from datetime import datetime
 
 def main():
     """Main function to activate today's song and clean up expired songs"""
+    if not os.environ.get('FLASK_ENV'):
+        os.environ['FLASK_ENV'] = 'production'
     app = create_app()
     
     with app.app_context():

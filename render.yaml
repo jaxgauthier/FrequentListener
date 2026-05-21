@@ -1,0 +1,43 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# After deploy: attach a persistent disk mounted at /var/data (see docs/DEPLOY.md).
+
+services:
+  - type: web
+    name: frequent-listener
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    releaseCommand: python scripts/release.py
+    startCommand: gunicorn -c gunicorn.conf.py wsgi:app
+    healthCheckPath: /health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "false"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: frequent-listener-db
+          property: connectionString
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: AUDIO_OUTPUT_FOLDER
+        value: /var/data/OutputWAVS
+      - key: UPLOAD_FOLDER
+        value: /var/data/uploads
+      - key: LOG_FILE
+        value: /var/data/logs/app.log
+
+databases:
+  - name: frequent-listener-db
+    plan: free
+    databaseName: frequent_listener
+    user: frequent_listener
